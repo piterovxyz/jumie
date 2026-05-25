@@ -6,4 +6,4 @@ build:
 	go build -o dist/juund ./cmd/juund
 
 clean:
-rm -rf dist/
+	rm -rf dist/
