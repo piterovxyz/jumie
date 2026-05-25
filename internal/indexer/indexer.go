@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
-	"fmt"
 	"log"
 	"os"
 	"os/exec"
@@ -30,7 +29,6 @@ func RunIndexer() (*InfoCache, error) {
 		make(map[string]string),
 	}
 
-	fmt.Println(info)
 	return NewCache(info), nil
 }
 
