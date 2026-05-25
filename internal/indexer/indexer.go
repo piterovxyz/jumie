@@ -47,7 +47,7 @@ func getSystemRelease() (string, string) {
 		for sc.Scan() {
 			line := sc.Text()
 			if version, ok := strings.CutPrefix(line, "VERSION_ID="); ok {
-				return "linux", version
+				return "linux", strings.Trim(version, "\"")
 			}
 		}
 
