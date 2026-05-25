@@ -12,15 +12,15 @@ import (
 	"strings"
 )
 
-func RunIndexer() error {
+func RunIndexer() (*InfoCache, error) {
 	osType, osRelease, err := getSystemRelease()
 	if err != nil {
-		return err
+		return &InfoCache{}, err
 	}
 
 	path, err := parsePath()
 	if err != nil {
-		return err
+		return &InfoCache{}, err
 	}
 
 	info := SystemInfo{
@@ -31,7 +31,7 @@ func RunIndexer() error {
 	}
 
 	fmt.Println(info)
-	return nil
+	return NewCache(info), nil
 }
 
 func getSystemRelease() (string, string, error) {
@@ -63,7 +63,7 @@ func getSystemRelease() (string, string, error) {
 		}
 
 		if sc.Err() != nil {
-			log.Printf("error to get system version: %v\n", err)
+			log.Printf("error to get system version: %v\n", sc.Err())
 			return "linux", "unsupported", err
 		}
 		return "linux", "unsupported", err
@@ -80,7 +80,9 @@ func parsePath() ([]string, error) {
 	for f := range folders {
 		bins, err := os.ReadDir(f)
 		if err != nil {
-			log.Printf("error reading folder: %v\n", err)
+			if !errors.Is(err, os.ErrNotExist) {
+				log.Printf("error reading folder: %v\n", err)
+			}
 			continue
 		}
 

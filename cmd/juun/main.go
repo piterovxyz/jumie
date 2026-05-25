@@ -7,8 +7,10 @@ import (
 )
 
 func main() {
+	var sysInfo indexer.InfoCache
+
 	fmt.Println("juun client starting...")
-	err := indexer.RunIndexer()
+	sysInfo, err := indexer.RunIndexer()
 	if err != nil {
 		log.Fatalln(err.Error())
 	}

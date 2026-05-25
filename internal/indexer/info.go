@@ -14,6 +14,13 @@ type InfoCache struct {
 	info SystemInfo
 }
 
+func NewCache(info SystemInfo) *InfoCache {
+	return &InfoCache{
+		mu:   sync.RWMutex{},
+		info: info,
+	}
+}
+
 func (i *InfoCache) Get() SystemInfo {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
