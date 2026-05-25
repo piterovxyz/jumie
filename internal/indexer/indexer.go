@@ -3,6 +3,7 @@ package indexer
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -11,19 +12,29 @@ import (
 	"strings"
 )
 
-func RunIndexer() {
-	osType, osRelease := getSystemRelease()
+func RunIndexer() error {
+	osType, osRelease, err := getSystemRelease()
+	if err != nil {
+		return err
+	}
+
+	path, err := parsePath()
+	if err != nil {
+		return err
+	}
+
 	info := SystemInfo{
 		osType,
 		osRelease,
-		parsePath(),
+		path,
 		make(map[string]string),
 	}
 
 	fmt.Println(info)
+	return nil
 }
 
-func getSystemRelease() (string, string) {
+func getSystemRelease() (string, string, error) {
 	var out bytes.Buffer
 	switch runtime.GOOS {
 	case "darwin":
@@ -32,14 +43,14 @@ func getSystemRelease() (string, string) {
 		err := cmd.Run()
 		if err != nil {
 			log.Printf("error to get system version: %v\n", err)
-			return "darwin", "unsupported"
+			return "darwin", "unsupported", err
 		}
-		return "darwin", strings.TrimSpace(out.String())
+		return "darwin", strings.TrimSpace(out.String()), nil
 	case "linux":
 		file, err := os.Open("/etc/os-release")
 		if err != nil {
 			log.Printf("error to get system version: %v\n", err)
-			return "linux", "unsupported"
+			return "linux", "unsupported", err
 		}
 		defer file.Close()
 
@@ -47,21 +58,21 @@ func getSystemRelease() (string, string) {
 		for sc.Scan() {
 			line := sc.Text()
 			if version, ok := strings.CutPrefix(line, "VERSION_ID="); ok {
-				return "linux", strings.Trim(version, "\"")
+				return "linux", strings.Trim(version, "\""), nil
 			}
 		}
 
 		if sc.Err() != nil {
 			log.Printf("error to get system version: %v\n", err)
-			return "linux", "unsupported"
+			return "linux", "unsupported", err
 		}
-		return "linux", "unsupported"
+		return "linux", "unsupported", err
 	default:
-		return "unknown", "unsupported"
+		return "unknown", "unsupported", errors.New("unsupported system")
 	}
 }
 
-func parsePath() []string {
+func parsePath() ([]string, error) {
 	var res []string
 	path := os.Getenv("PATH")
 	folders := strings.SplitSeq(path, ":")
@@ -89,5 +100,5 @@ func parsePath() []string {
 		}
 	}
 
-	return res
+	return res, nil
 }
