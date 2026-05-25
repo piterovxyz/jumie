@@ -45,15 +45,15 @@ func getSystemRelease() (string, string) {
 
 		sc := bufio.NewScanner(file)
 		for sc.Scan() {
-			if sc.Err() != nil {
-				log.Printf("error to get system version: %v\n", err)
-				return "linux", "unsupported"
-			}
-
 			line := sc.Text()
 			if version, ok := strings.CutPrefix(line, "VERSION_ID="); ok {
 				return "linux", version
 			}
+		}
+
+		if sc.Err() != nil {
+			log.Printf("error to get system version: %v\n", err)
+			return "linux", "unsupported"
 		}
 		return "linux", "unsupported"
 	default:
