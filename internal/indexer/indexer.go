@@ -11,15 +11,15 @@ import (
 	"strings"
 )
 
-func RunIndexer() (*InfoCache, error) {
+func RunIndexer(c *InfoCache) {
 	osType, osRelease, err := getSystemRelease()
 	if err != nil {
-		return &InfoCache{}, err
+		return
 	}
 
 	path, err := parsePath()
 	if err != nil {
-		return &InfoCache{}, err
+		return
 	}
 
 	info := SystemInfo{
@@ -29,7 +29,7 @@ func RunIndexer() (*InfoCache, error) {
 		make(map[string]string),
 	}
 
-	return NewCache(info), nil
+	c.Write(info)
 }
 
 func getSystemRelease() (string, string, error) {

@@ -6,6 +6,8 @@ import (
 	"log"
 )
 
+var globalCache = indexer.NewCache(indexer.SystemInfo{})
+
 func main() {
 	var sysInfo *indexer.InfoCache
 
