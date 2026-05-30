@@ -2,8 +2,8 @@
 
 
 build:
-	go build -o dist/juun ./cmd/juun
-	go build -o dist/juund ./cmd/juund
+	go build -o dist/jumie ./cmd/jumie
+	go build -o dist/jumied ./cmd/jumied
 
 clean:
 	rm -rf dist/

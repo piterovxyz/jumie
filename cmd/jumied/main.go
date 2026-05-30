@@ -3,5 +3,5 @@ package main
 import "fmt"
 
 func main() {
-	fmt.Println("juun daemon starting...")
+	fmt.Println("jumie daemon starting...")
 }

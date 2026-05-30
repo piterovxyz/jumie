@@ -1,3 +1,3 @@
-module juun
+module jumie
 
 go 1.26.3
