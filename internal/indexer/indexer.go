@@ -26,6 +26,7 @@ func RunIndexer(c *InfoCache) {
 		osType,
 		osRelease,
 		path,
+		os.Getenv("SHELL"),
 		make(map[string]string),
 	}
 
