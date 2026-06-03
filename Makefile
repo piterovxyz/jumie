@@ -2,7 +2,7 @@
 
 
 build:
-	go build -o dist/jumie ./cmd/jumie
+	go build -o dist/jum ./cmd/jumie
 	go build -o dist/jumied ./cmd/jumied
 
 clean:

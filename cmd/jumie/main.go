@@ -26,7 +26,10 @@ func main() {
 		}
 	}(c.Conn)
 
+	stop := startSpinner()
 	resp, err := c.SendMessage(msg)
+	stop()
+
 	if err != nil {
 		log.Fatalf("error sending message: %v\n", err)
 	}
