@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"jumie/internal/ipc"
 	"log"
 	"net"
@@ -25,8 +26,10 @@ func main() {
 		}
 	}(c.Conn)
 
-	err = c.SendMessage(msg)
+	resp, err := c.SendMessage(msg)
 	if err != nil {
 		log.Fatalf("error sending message: %v\n", err)
 	}
+
+	fmt.Println(resp)
 }

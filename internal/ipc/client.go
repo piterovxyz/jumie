@@ -41,10 +41,10 @@ func NewClient() (*Client, error) {
 	}, nil
 }
 
-func (c *Client) SendMessage(msg string) error {
+func (c *Client) SendMessage(msg string) (*Response, error) {
 	bytes, err := json.Marshal(msgPayload{msg})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	data := Request{
@@ -53,19 +53,19 @@ func (c *Client) SendMessage(msg string) error {
 
 	bytes, err = json.Marshal(data)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	_, err = c.Conn.Write(bytes)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var resp Response
 	err = json.NewDecoder(c.Conn).Decode(&resp)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return &resp, nil
 }
