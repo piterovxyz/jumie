@@ -8,10 +8,15 @@ import (
 	"os"
 )
 
-func Listen(sysInfo indexer.SystemInfo) {
+type Server struct {
+	socketPath string
+	cache      indexer.InfoCache
+}
+
+func (s *Server) Listen() {
 	var path string
 
-	if sysInfo.IsSU {
+	if s.cache.Get().IsSU {
 		path = "/var/jumie.sock"
 	} else {
 		path = os.Getenv("HOME") + "/.local/share/jumie/jumie.sock"
@@ -21,7 +26,12 @@ func Listen(sysInfo indexer.SystemInfo) {
 	if err != nil {
 		log.Fatalf("listen error: %v\n", err)
 	}
-	defer listener.Close()
+	defer func(listener net.Listener) {
+		err := listener.Close()
+		if err != nil {
+			log.Printf("listener close error: %v\n", err)
+		}
+	}(listener)
 
 	for {
 		conn, err := listener.Accept()
@@ -31,7 +41,12 @@ func Listen(sysInfo indexer.SystemInfo) {
 		}
 
 		go func(c net.Conn) {
-			defer c.Close()
+			defer func(c net.Conn) {
+				err := c.Close()
+				if err != nil {
+					log.Printf("close error: %v", err)
+				}
+			}(c)
 			var data map[string]string
 			err := json.NewDecoder(c).Decode(&data)
 			if err != nil {
