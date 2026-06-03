@@ -56,18 +56,30 @@ func doRequest(c net.Conn) {
 		}
 	}(c)
 
-	var data Request
-	err := json.NewDecoder(c).Decode(&data)
+	var req Request
+	err := json.NewDecoder(c).Decode(&req)
 	if err != nil {
 		fmt.Printf("data decode error: %v", err)
 		return
 	}
 
-	msg, err := data.Payload.MarshalJSON()
+	msg, err := req.Payload.MarshalJSON()
 	if err != nil {
 		fmt.Printf("payload decode error: %v", err)
 		return
 	}
-
 	log.Printf("received data %s\n", msg)
+
+	resp := Response{
+		Command: "some command",
+		Payload: req.Payload,
+	}
+
+	data, err := json.Marshal(resp)
+
+	_, err = c.Write(data)
+	if err != nil {
+		log.Printf("write error: %v", err)
+		return
+	}
 }
