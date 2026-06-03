@@ -2,9 +2,11 @@ package ipc
 
 import (
 	"encoding/json"
+	"fmt"
 	"jumie/internal/indexer"
 	"log"
 	"net"
+	"os"
 )
 
 type Server struct {
@@ -20,6 +22,10 @@ func NewServer(socketPath string, cache *indexer.InfoCache) *Server {
 }
 
 func (s *Server) Listen() {
+	if err := os.Remove(s.socketPath); err != nil && !os.IsNotExist(err) {
+		log.Printf("error removing socket: %v", err)
+	}
+
 	listener, err := net.Listen("unix", s.socketPath)
 	if err != nil {
 		log.Fatalf("listen error: %v\n", err)
@@ -46,13 +52,21 @@ func (s *Server) Listen() {
 				}
 			}(c)
 
-			var data map[string]string
+			var data Request
+
 			err := json.NewDecoder(c).Decode(&data)
 			if err != nil {
-				log.Printf("error read data: %v", err)
+				fmt.Printf("data decode error: %v", err)
+				return
 			}
 
-			log.Printf("received data %v\n", data)
+			raw, err := data.Payload.MarshalJSON()
+			if err != nil {
+				fmt.Printf("payload decode error: %v", err)
+				return
+			}
+
+			log.Printf("received data %s\n", raw)
 		}(conn)
 	}
 }
