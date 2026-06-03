@@ -2,8 +2,6 @@ package ipc
 
 import (
 	"encoding/json"
-	"fmt"
-	"log"
 	"net"
 	"os"
 	"os/user"
@@ -14,12 +12,16 @@ type Client struct {
 	Conn       net.Conn
 }
 
+type msgPayload struct {
+	AIMessage string `json:"ai_message"`
+}
+
 func NewClient() (*Client, error) {
 	var path string
 
 	current, err := user.Current()
 	if err != nil {
-		log.Fatalf("error to get current user: %v\n", err)
+		return nil, err
 	}
 
 	if current.Uid == "0" {
@@ -40,11 +42,16 @@ func NewClient() (*Client, error) {
 }
 
 func (c *Client) SendMessage(msg string) error {
-	data := Request{
-		Payload: json.RawMessage(fmt.Sprintf(`{"ai_message": "%s"}`, msg)),
+	bytes, err := json.Marshal(msgPayload{msg})
+	if err != nil {
+		return err
 	}
 
-	bytes, err := json.Marshal(data)
+	data := Request{
+		Payload: json.RawMessage(bytes),
+	}
+
+	bytes, err = json.Marshal(data)
 	if err != nil {
 		return err
 	}
