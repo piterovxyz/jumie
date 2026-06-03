@@ -5,24 +5,22 @@ import (
 	"jumie/internal/indexer"
 	"log"
 	"net"
-	"os"
 )
 
 type Server struct {
 	socketPath string
-	cache      indexer.InfoCache
+	cache      *indexer.InfoCache
+}
+
+func NewServer(socketPath string, cache *indexer.InfoCache) *Server {
+	return &Server{
+		socketPath: socketPath,
+		cache:      cache,
+	}
 }
 
 func (s *Server) Listen() {
-	var path string
-
-	if s.cache.Get().IsSU {
-		path = "/var/jumie.sock"
-	} else {
-		path = os.Getenv("HOME") + "/.local/share/jumie/jumie.sock"
-	}
-
-	listener, err := net.Listen("unix", path)
+	listener, err := net.Listen("unix", s.socketPath)
 	if err != nil {
 		log.Fatalf("listen error: %v\n", err)
 	}
@@ -47,6 +45,7 @@ func (s *Server) Listen() {
 					log.Printf("close error: %v", err)
 				}
 			}(c)
+
 			var data map[string]string
 			err := json.NewDecoder(c).Decode(&data)
 			if err != nil {
