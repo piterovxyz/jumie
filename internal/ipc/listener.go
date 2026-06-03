@@ -2,12 +2,22 @@ package ipc
 
 import (
 	"encoding/json"
+	"jumie/internal/indexer"
 	"log"
 	"net"
+	"os"
 )
 
-func Listen() {
-	listener, err := net.Listen("unix", "/var/jumie.sock")
+func Listen(sysInfo indexer.SystemInfo) {
+	var path string
+
+	if sysInfo.IsSU {
+		path = "/var/jumie.sock"
+	} else {
+		path = os.Getenv("HOME") + "/.local/share/jumie/jumie.sock"
+	}
+
+	listener, err := net.Listen("unix", path)
 	if err != nil {
 		log.Fatalf("listen error: %v\n", err)
 	}

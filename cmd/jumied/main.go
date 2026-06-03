@@ -12,5 +12,5 @@ func main() {
 	info := indexer.SystemInfo{}
 	cache := indexer.NewCache(info)
 	indexer.RunIndexer(cache)
-	ipc.Listen()
+	ipc.Listen(info)
 }

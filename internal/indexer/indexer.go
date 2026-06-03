@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"os/user"
 	"runtime"
 	"strings"
 )
@@ -22,11 +23,20 @@ func RunIndexer(c *InfoCache) {
 		return
 	}
 
+	user, err := user.Current()
+	if err != nil {
+		log.Printf("error to get current user: %v\n", err)
+		return
+	}
+
+	isRoot := user.Uid == "0"
+
 	info := SystemInfo{
 		osType,
 		osRelease,
 		path,
 		os.Getenv("SHELL"),
+		isRoot,
 		make(map[string]string),
 	}
 
