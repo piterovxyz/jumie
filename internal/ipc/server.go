@@ -44,29 +44,31 @@ func (s *Server) Listen() {
 			continue
 		}
 
-		go func(c net.Conn) {
-			defer func(c net.Conn) {
-				err := c.Close()
-				if err != nil {
-					log.Printf("close error: %v", err)
-				}
-			}(c)
-
-			var data Request
-
-			err := json.NewDecoder(c).Decode(&data)
-			if err != nil {
-				fmt.Printf("data decode error: %v", err)
-				return
-			}
-
-			raw, err := data.Payload.MarshalJSON()
-			if err != nil {
-				fmt.Printf("payload decode error: %v", err)
-				return
-			}
-
-			log.Printf("received data %s\n", raw)
-		}(conn)
+		go doRequest(conn)
 	}
+}
+
+func doRequest(c net.Conn) {
+	defer func(c net.Conn) {
+		err := c.Close()
+		if err != nil {
+			log.Printf("close error: %v", err)
+		}
+	}(c)
+
+	var data Request
+
+	err := json.NewDecoder(c).Decode(&data)
+	if err != nil {
+		fmt.Printf("data decode error: %v", err)
+		return
+	}
+
+	raw, err := data.Payload.MarshalJSON()
+	if err != nil {
+		fmt.Printf("payload decode error: %v", err)
+		return
+	}
+
+	log.Printf("received data %s\n", raw)
 }
