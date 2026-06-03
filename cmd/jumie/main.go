@@ -37,12 +37,16 @@ func main() {
 			"age":  "21",
 		}
 
-		json, err := json.Marshal(data)
+		bytes, err := json.Marshal(data)
 		if err != nil {
 			log.Printf("failed to marshal json: %v", err)
 		}
 
-		c.Write(json)
+		_, err = c.Write(bytes)
+		if err != nil {
+			log.Printf("failed to write to socket: %v", err)
+		}
+
 		time.Sleep(time.Second * 5)
 	}
 }
