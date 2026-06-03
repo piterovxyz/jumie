@@ -7,10 +7,10 @@ import (
 )
 
 func main() {
+	fmt.Println("jumie daemon starting...")
+
 	info := indexer.SystemInfo{}
 	cache := indexer.NewCache(info)
 	indexer.RunIndexer(cache)
 	ipc.Listen()
-
-	fmt.Println("jumie daemon starting...")
 }
