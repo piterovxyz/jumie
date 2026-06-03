@@ -13,13 +13,13 @@ func main() {
 	for {
 		var path string
 
-		user, err := user.Current()
+		current, err := user.Current()
 		if err != nil {
 			log.Printf("error to get current user: %v\n", err)
 			return
 		}
 
-		if user.Uid == "0" {
+		if current.Uid == "0" {
 			path = "/var/jumie.sock"
 		} else {
 			path = os.Getenv("HOME") + "/.local/share/jumie/jumie.sock"
