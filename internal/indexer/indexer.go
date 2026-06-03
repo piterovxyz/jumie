@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"os/user"
 	"runtime"
 	"strings"
 )
@@ -22,10 +23,20 @@ func RunIndexer(c *InfoCache) {
 		return
 	}
 
+	current, err := user.Current()
+	if err != nil {
+		log.Printf("error to get current user: %v\n", err)
+		return
+	}
+
+	isRoot := current.Uid == "0"
+
 	info := SystemInfo{
 		osType,
 		osRelease,
 		path,
+		os.Getenv("SHELL"),
+		isRoot,
 		make(map[string]string),
 	}
 
@@ -50,7 +61,12 @@ func getSystemRelease() (string, string, error) {
 			log.Printf("error to get system version: %v\n", err)
 			return "linux", "unsupported", err
 		}
-		defer file.Close()
+		defer func(file *os.File) {
+			err := file.Close()
+			if err != nil {
+				log.Printf("error to get system version: %v\n", err)
+			}
+		}(file)
 
 		sc := bufio.NewScanner(file)
 		for sc.Scan() {

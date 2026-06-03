@@ -2,20 +2,34 @@ package main
 
 import (
 	"fmt"
-	"jumie/internal/indexer"
+	"jumie/internal/ipc"
 	"log"
+	"net"
+	"os"
 )
 
-var globalCache = indexer.NewCache(indexer.SystemInfo{})
-
 func main() {
-	var sysInfo *indexer.InfoCache
-
-	fmt.Println("jumie client starting...")
-	sysInfo, err := indexer.RunIndexer()
-	if err != nil {
-		log.Fatalln(err.Error())
+	if len(os.Args) < 2 {
+		log.Fatalf("usage: %s <message>", os.Args[0])
 	}
 
-	fmt.Println(sysInfo)
+	msg := os.Args[1]
+
+	c, err := ipc.NewClient()
+	if err != nil {
+		log.Fatalf("error creating ipc client: %v\n", err)
+	}
+	defer func(Conn net.Conn) {
+		err := Conn.Close()
+		if err != nil {
+			log.Fatalf("error closing connection: %v\n", err)
+		}
+	}(c.Conn)
+
+	resp, err := c.SendMessage(msg)
+	if err != nil {
+		log.Fatalf("error sending message: %v\n", err)
+	}
+
+	fmt.Println(resp)
 }

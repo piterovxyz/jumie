@@ -6,6 +6,8 @@ type SystemInfo struct {
 	OsType    string
 	OsRelease string
 	Path      []string
+	Shell     string
+	IsSU      bool
 	Meta      map[string]string
 }
 
