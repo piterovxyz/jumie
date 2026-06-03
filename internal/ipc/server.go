@@ -57,18 +57,17 @@ func doRequest(c net.Conn) {
 	}(c)
 
 	var data Request
-
 	err := json.NewDecoder(c).Decode(&data)
 	if err != nil {
 		fmt.Printf("data decode error: %v", err)
 		return
 	}
 
-	raw, err := data.Payload.MarshalJSON()
+	msg, err := data.Payload.MarshalJSON()
 	if err != nil {
 		fmt.Printf("payload decode error: %v", err)
 		return
 	}
 
-	log.Printf("received data %s\n", raw)
+	log.Printf("received data %s\n", msg)
 }
