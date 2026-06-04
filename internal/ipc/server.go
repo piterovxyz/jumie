@@ -11,6 +11,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"time"
 )
 
@@ -29,6 +30,11 @@ func NewServer(socketPath string, cache *indexer.InfoCache) *Server {
 func (s *Server) Listen() {
 	if err := os.Remove(s.socketPath); err != nil && !os.IsNotExist(err) {
 		log.Printf("error removing socket: %v", err)
+	}
+
+	dir := filepath.Dir(s.socketPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		log.Fatalf("failed to create socket directory: %v\n", err)
 	}
 
 	listener, err := net.Listen("unix", s.socketPath)
