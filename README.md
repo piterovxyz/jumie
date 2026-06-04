@@ -59,7 +59,7 @@ This command will validate the key with a quick test API request and save it sec
 Once the daemon is installed and you are logged in, simply ask `jum` to do anything:
 
 ```bash
-jum "show hardware stats"
+jum show hardware stats
 ```
 
 ```text
