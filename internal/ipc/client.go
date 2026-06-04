@@ -48,9 +48,7 @@ func (c *Client) SendMessage(msg string) (*ai.Plan, error) {
 		return nil, err
 	}
 
-	data := Request{
-		Payload: json.RawMessage(bytes),
-	}
+	data := json.RawMessage(bytes)
 
 	bytes, err = json.Marshal(data)
 	if err != nil {

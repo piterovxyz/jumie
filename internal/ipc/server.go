@@ -52,7 +52,8 @@ func (s *Server) Listen() {
 }
 
 func doRequest(c net.Conn) {
-	ctx, _ := context.WithTimeout(context.Background(), time.Second*5)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
 
 	defer func(c net.Conn) {
 		err := c.Close()
@@ -61,14 +62,14 @@ func doRequest(c net.Conn) {
 		}
 	}(c)
 
-	var req Request
+	var req json.RawMessage
 	err := json.NewDecoder(c).Decode(&req)
 	if err != nil {
 		fmt.Printf("data decode error: %v", err)
 		return
 	}
 
-	msg, err := req.Payload.MarshalJSON()
+	msg, err := req.MarshalJSON()
 	if err != nil {
 		fmt.Printf("payload decode error: %v", err)
 		return
@@ -94,6 +95,4 @@ func doRequest(c net.Conn) {
 		log.Printf("write error: %v", err)
 		return
 	}
-
-	<-ctx.Done()
 }
