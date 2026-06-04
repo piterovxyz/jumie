@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="logo.svg" alt="jumie logo" width="200"/>
+</p>
+
 # jumie
 
 A smart Unix terminal assistant powered by AI.
