@@ -1,0 +1,10 @@
+[Unit]
+Description=jumie background daemon
+After=network.target
+
+[Service]
+ExecStart=HOME_DIR/.local/bin/jumied
+Restart=always
+
+[Install]
+WantedBy=default.target
