@@ -55,6 +55,19 @@ func NewClient(apiKey string) (*Client, error) {
 	}, nil
 }
 
+func (c *Client) ValidateKey(ctx context.Context) error {
+	_, err := c.Models.GenerateContent(
+		ctx,
+		c.model,
+		genai.Text("ping"),
+		nil,
+	)
+	if err != nil {
+		return fmt.Errorf("api key validation failed: %w", err)
+	}
+	return nil
+}
+
 func (c *Client) UpdateCache(index indexer.SystemInfo) error {
 	info, err := json.Marshal(index)
 	if err != nil {

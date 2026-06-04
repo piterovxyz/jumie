@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"jumie/internal/ai"
 	"jumie/internal/config"
@@ -22,6 +23,19 @@ func main() {
 			log.Fatalf("usage: %s login <api_key>", os.Args[0])
 		}
 		key := os.Args[2]
+
+		fmt.Println("validating API key...")
+		client, err := ai.NewClient(key)
+		if err != nil {
+			log.Fatalf("failed to initialize AI client: %v\n", err)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if err := client.ValidateKey(ctx); err != nil {
+			cancel()
+			log.Fatalf("invalid API key: %v\n", err)
+		}
+		cancel()
+
 		if err := config.Save(key); err != nil {
 			log.Fatalf("error saving config: %v\n", err)
 		}
@@ -44,10 +58,24 @@ func main() {
 		if key == "" {
 			log.Fatalf("\napi key cannot be empty\n")
 		}
+
+		fmt.Println("validating API key...")
+		client, err := ai.NewClient(key)
+		if err != nil {
+			log.Fatalf("failed to initialize AI client: %v\n", err)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if err := client.ValidateKey(ctx); err != nil {
+			cancel()
+			fmt.Printf("invalid api key! please provide a valid api key or try again later.\n")
+			return
+		}
+		cancel()
+
 		if err := config.Save(key); err != nil {
 			log.Fatalf("\nerror saving config: %v\n", err)
 		}
-		fmt.Println("\nsuccessfully logged in!")
+		fmt.Println("successfully logged in!")
 	}
 
 	c, err := ipc.NewClient()
