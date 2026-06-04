@@ -1,12 +1,15 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
+	"jumie/internal/ai"
 	"jumie/internal/ipc"
 	"log"
 	"net"
 	"os"
 	"strings"
+	"time"
 )
 
 func main() {
@@ -35,5 +38,47 @@ func main() {
 		log.Fatalf("error sending message: %v\n", err)
 	}
 
-	fmt.Println(resp)
+	confirm := do(resp)
+
+	if confirm {
+
+	}
+}
+
+func typewriterPrint(text string, delay time.Duration) {
+	for _, r := range []rune(text) {
+		fmt.Print(string(r))
+		time.Sleep(delay)
+	}
+	fmt.Println()
+}
+
+func do(plan *ai.Plan) bool {
+	if len(plan.Steps) == 0 {
+		fmt.Println(Yellow + "plan is empty" + Reset)
+		return false
+	}
+
+	fmt.Println()
+	fmt.Println(Bold + Cyan + "✦ jumie plan:" + Reset)
+
+	for _, step := range plan.Steps {
+		fmt.Print(Cyan + "➜  " + Reset)
+		typewriterPrint(step.Description, 6*time.Millisecond)
+
+		fmt.Printf("%s$  %s%s\n", Yellow, step.Command, Reset)
+	}
+
+	reader := bufio.NewReader(os.Stdin)
+
+	stopPrompt := startPromptSpinner()
+	input, err := reader.ReadString('\n')
+	stopPrompt()
+
+	if err != nil {
+		return false
+	}
+
+	input = strings.TrimSpace(strings.ToLower(input))
+	return input == "y" || input == "yes"
 }
