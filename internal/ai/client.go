@@ -57,7 +57,7 @@ func NewClient(apiKey string, model string) (*Client, error) {
 	}, nil
 }
 
-func (c *Client) UpdateCache(index *indexer.SystemInfo) error {
+func (c *Client) UpdateCache(index indexer.SystemInfo) error {
 	info, err := json.Marshal(index)
 	if err != nil {
 		return err

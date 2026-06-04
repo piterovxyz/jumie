@@ -47,11 +47,11 @@ func (s *Server) Listen() {
 			continue
 		}
 
-		go doRequest(conn)
+		go s.doRequest(conn)
 	}
 }
 
-func doRequest(c net.Conn) {
+func (s *Server) doRequest(c net.Conn) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 
@@ -79,6 +79,12 @@ func doRequest(c net.Conn) {
 	client, err := ai.NewClient(os.Getenv("GEMINI_API_KEY"), os.Getenv("GEMINI_MODEL"))
 	if err != nil {
 		fmt.Printf("ai error: %v\n", err)
+		return
+	}
+
+	err = client.UpdateCache(s.cache.Get())
+	if err != nil {
+		fmt.Printf("update cache error: %v", err)
 		return
 	}
 
