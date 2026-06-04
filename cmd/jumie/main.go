@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"jumie/internal/ai"
+	"jumie/internal/config"
 	"jumie/internal/ipc"
 	"log"
 	"os"
@@ -13,10 +14,41 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		log.Fatalf("usage: %s <message>", os.Args[0])
+		log.Fatalf("usage: %s <message> or %s login <key>", os.Args[0], os.Args[0])
+	}
+
+	if os.Args[1] == "login" {
+		if len(os.Args) < 3 {
+			log.Fatalf("usage: %s login <api_key>", os.Args[0])
+		}
+		key := os.Args[2]
+		if err := config.Save(key); err != nil {
+			log.Fatalf("error saving config: %v\n", err)
+		}
+		fmt.Println("successfully logged in!")
+		return
 	}
 
 	msg := strings.Join(os.Args[1:], " ")
+
+	cfg, err := config.Load()
+	if err != nil || cfg.APIKey == "" {
+		stopPrompt := startLoginPrompt()
+		reader := bufio.NewReader(os.Stdin)
+		key, err := reader.ReadString('\n')
+		stopPrompt()
+		if err != nil {
+			log.Fatalf("\nerror reading api key: %v\n", err)
+		}
+		key = strings.TrimSpace(key)
+		if key == "" {
+			log.Fatalf("\napi key cannot be empty\n")
+		}
+		if err := config.Save(key); err != nil {
+			log.Fatalf("\nerror saving config: %v\n", err)
+		}
+		fmt.Println("\nsuccessfully logged in!")
+	}
 
 	c, err := ipc.NewClient()
 	if err != nil {

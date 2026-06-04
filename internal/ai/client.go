@@ -31,14 +31,12 @@ type Step struct {
 	Description string `json:"description"`
 }
 
-func NewClient(apiKey string, model string) (*Client, error) {
+func NewClient(apiKey string) (*Client, error) {
 	if apiKey == "" {
 		return nil, errors.New("api key cannot be empty")
 	}
 
-	if model == "" {
-		model = "gemini-3.1-flash-lite"
-	}
+	model := "gemini-3.1-flash-lite"
 
 	ctx := context.Background()
 	gc, err := genai.NewClient(ctx, &genai.ClientConfig{

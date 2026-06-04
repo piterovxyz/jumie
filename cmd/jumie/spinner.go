@@ -139,3 +139,34 @@ func startPromptSpinner() func() {
 		<-done
 	}
 }
+
+func startLoginPrompt() func() {
+	stop := make(chan struct{})
+	done := make(chan struct{})
+
+	fmt.Printf("%s(o_o) %senter your gemini api key: %s\0337", colorGreen, BoldGreen, Reset)
+
+	go func() {
+		defer close(done)
+		for {
+			select {
+			case <-stop:
+				return
+			case <-time.After(1 * time.Second):
+				fmt.Printf("\0337\r%s(-_-)%s\0338", colorGreen, Reset)
+
+				select {
+				case <-stop:
+					return
+				case <-time.After(150 * time.Millisecond):
+					fmt.Printf("\0337\r%s(o_o)%s\0338", colorGreen, Reset)
+				}
+			}
+		}
+	}()
+
+	return func() {
+		close(stop)
+		<-done
+	}
+}
