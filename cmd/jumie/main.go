@@ -2,8 +2,10 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"jumie/internal/ai"
+	"jumie/internal/config"
 	"jumie/internal/ipc"
 	"log"
 	"os"
@@ -13,10 +15,68 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		log.Fatalf("usage: %s <message>", os.Args[0])
+		log.Fatalf("usage: %s <message> or %s login <key>", os.Args[0], os.Args[0])
+	}
+
+	if os.Args[1] == "login" {
+		if len(os.Args) < 3 {
+			log.Fatalf("usage: %s login <api_key>", os.Args[0])
+		}
+		key := os.Args[2]
+
+		fmt.Println("validating API key...")
+		client, err := ai.NewClient(key)
+		if err != nil {
+			log.Fatalf("failed to initialize AI client: %v\n", err)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if err := client.ValidateKey(ctx); err != nil {
+			cancel()
+			log.Fatalf("invalid API key: %v\n", err)
+		}
+		cancel()
+
+		if err := config.Save(key); err != nil {
+			log.Fatalf("error saving config: %v\n", err)
+		}
+		fmt.Println("successfully logged in!")
+		return
 	}
 
 	msg := strings.Join(os.Args[1:], " ")
+
+	cfg, err := config.Load()
+	if err != nil || cfg.APIKey == "" {
+		stopPrompt := startLoginPrompt()
+		reader := bufio.NewReader(os.Stdin)
+		key, err := reader.ReadString('\n')
+		stopPrompt()
+		if err != nil {
+			log.Fatalf("\nerror reading api key: %v\n", err)
+		}
+		key = strings.TrimSpace(key)
+		if key == "" {
+			log.Fatalf("\napi key cannot be empty\n")
+		}
+
+		fmt.Println("validating API key...")
+		client, err := ai.NewClient(key)
+		if err != nil {
+			log.Fatalf("failed to initialize AI client: %v\n", err)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if err := client.ValidateKey(ctx); err != nil {
+			cancel()
+			fmt.Printf("invalid api key! please provide a valid api key or try again later.\n")
+			return
+		}
+		cancel()
+
+		if err := config.Save(key); err != nil {
+			log.Fatalf("\nerror saving config: %v\n", err)
+		}
+		fmt.Println("successfully logged in!")
+	}
 
 	c, err := ipc.NewClient()
 	if err != nil {

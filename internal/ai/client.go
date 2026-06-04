@@ -31,14 +31,12 @@ type Step struct {
 	Description string `json:"description"`
 }
 
-func NewClient(apiKey string, model string) (*Client, error) {
+func NewClient(apiKey string) (*Client, error) {
 	if apiKey == "" {
 		return nil, errors.New("api key cannot be empty")
 	}
 
-	if model == "" {
-		model = "gemini-3.1-flash-lite"
-	}
+	model := "gemini-3.1-flash-lite"
 
 	ctx := context.Background()
 	gc, err := genai.NewClient(ctx, &genai.ClientConfig{
@@ -55,6 +53,19 @@ func NewClient(apiKey string, model string) (*Client, error) {
 		apiKey,
 		system,
 	}, nil
+}
+
+func (c *Client) ValidateKey(ctx context.Context) error {
+	_, err := c.Models.GenerateContent(
+		ctx,
+		c.model,
+		genai.Text("ping"),
+		nil,
+	)
+	if err != nil {
+		return fmt.Errorf("api key validation failed: %w", err)
+	}
+	return nil
 }
 
 func (c *Client) UpdateCache(index indexer.SystemInfo) error {

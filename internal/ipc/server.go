@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"jumie/internal/ai"
+	"jumie/internal/config"
 	"jumie/internal/indexer"
 	"log"
 	"net"
@@ -59,9 +60,9 @@ func (s *Server) Listen() {
 
 			switch req.Type {
 			case "plan":
-				go s.doPlan(req.AIMessage, c)
+				s.doPlan(req.AIMessage, c)
 			case "exec":
-				go s.doExec(req.Commands, c)
+				s.doExec(req.Commands, c)
 			}
 		}(conn)
 	}
@@ -78,7 +79,13 @@ func (s *Server) doPlan(msg string, c net.Conn) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 
-	client, err := ai.NewClient(os.Getenv("GEMINI_API_KEY"), os.Getenv("GEMINI_MODEL"))
+	cfg, err := config.Load()
+	if err != nil || cfg.APIKey == "" {
+		fmt.Fprintln(c, "\nerror: API key is not configured. please run 'jum login <api_key>' first.")
+		return
+	}
+
+	client, err := ai.NewClient(cfg.APIKey)
 	if err != nil {
 		fmt.Printf("ai error: %v\n", err)
 		return
