@@ -1,12 +1,15 @@
 package ipc
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"jumie/internal/ai"
 	"jumie/internal/indexer"
 	"log"
 	"net"
 	"os"
+	"time"
 )
 
 type Server struct {
@@ -49,6 +52,8 @@ func (s *Server) Listen() {
 }
 
 func doRequest(c net.Conn) {
+	ctx, _ := context.WithTimeout(context.Background(), time.Second*5)
+
 	defer func(c net.Conn) {
 		err := c.Close()
 		if err != nil {
@@ -70,16 +75,25 @@ func doRequest(c net.Conn) {
 	}
 	log.Printf("received data %s\n", msg)
 
-	resp := Response{
-		Command: "some command",
-		Payload: req.Payload,
+	client, err := ai.NewClient(os.Getenv("GEMINI_API_KEY"), os.Getenv("GEMINI_MODEL"))
+	if err != nil {
+		fmt.Printf("ai error: %v\n", err)
+		return
 	}
 
-	data, err := json.Marshal(resp)
+	plan, err := client.GeneratePlan(ctx, string(msg))
+	if err != nil {
+		fmt.Printf("plan error: %v\n", err)
+		return
+	}
+
+	data, err := json.Marshal(plan)
 
 	_, err = c.Write(data)
 	if err != nil {
 		log.Printf("write error: %v", err)
 		return
 	}
+
+	<-ctx.Done()
 }

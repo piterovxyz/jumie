@@ -2,6 +2,7 @@ package ipc
 
 import (
 	"encoding/json"
+	"jumie/internal/ai"
 	"net"
 	"os"
 	"os/user"
@@ -41,7 +42,7 @@ func NewClient() (*Client, error) {
 	}, nil
 }
 
-func (c *Client) SendMessage(msg string) (*Response, error) {
+func (c *Client) SendMessage(msg string) (*ai.Plan, error) {
 	bytes, err := json.Marshal(msgPayload{msg})
 	if err != nil {
 		return nil, err
@@ -61,7 +62,7 @@ func (c *Client) SendMessage(msg string) (*Response, error) {
 		return nil, err
 	}
 
-	var resp Response
+	var resp ai.Plan
 	err = json.NewDecoder(c.Conn).Decode(&resp)
 	if err != nil {
 		return nil, err

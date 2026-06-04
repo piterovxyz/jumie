@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"strings"
 )
 
 func main() {
@@ -13,7 +14,7 @@ func main() {
 		log.Fatalf("usage: %s <message>", os.Args[0])
 	}
 
-	msg := os.Args[1]
+	msg := strings.Join(os.Args[1:], " ")
 
 	c, err := ipc.NewClient()
 	if err != nil {
