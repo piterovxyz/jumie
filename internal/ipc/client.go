@@ -48,13 +48,6 @@ func (c *Client) SendMessage(msg string) (*ai.Plan, error) {
 		return nil, err
 	}
 
-	data := json.RawMessage(bytes)
-
-	bytes, err = json.Marshal(data)
-	if err != nil {
-		return nil, err
-	}
-
 	_, err = c.Conn.Write(bytes)
 	if err != nil {
 		return nil, err
