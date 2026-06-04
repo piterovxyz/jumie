@@ -62,19 +62,15 @@ func (s *Server) doRequest(c net.Conn) {
 		}
 	}(c)
 
-	var req json.RawMessage
+	var req struct {
+		AIMessage string `json:"ai_message"`
+	}
+
 	err := json.NewDecoder(c).Decode(&req)
 	if err != nil {
 		fmt.Printf("data decode error: %v", err)
 		return
 	}
-
-	msg, err := req.MarshalJSON()
-	if err != nil {
-		fmt.Printf("payload decode error: %v", err)
-		return
-	}
-	log.Printf("received data %s\n", msg)
 
 	client, err := ai.NewClient(os.Getenv("GEMINI_API_KEY"), os.Getenv("GEMINI_MODEL"))
 	if err != nil {
@@ -88,7 +84,8 @@ func (s *Server) doRequest(c net.Conn) {
 		return
 	}
 
-	plan, err := client.GeneratePlan(ctx, string(msg))
+	plan, err := client.GeneratePlan(ctx, req.AIMessage)
+
 	if err != nil {
 		fmt.Printf("plan error: %v\n", err)
 		return
