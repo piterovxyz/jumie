@@ -7,6 +7,17 @@ import (
 )
 
 const (
+	Reset     = "\033[0m"
+	Bold      = "\033[1m"
+	Dim       = "\033[2m"
+	Gray      = "\033[90m"
+	Cyan      = "\033[36m"
+	Green     = "\033[32m"
+	Yellow    = "\033[33m"
+	BoldGreen = "\033[1;32m"
+)
+
+const (
 	colorGreen = "\033[32m"
 	colorReset = "\033[0m"
 )
@@ -88,6 +99,37 @@ func startSpinner() func() {
 
 				fmt.Printf("\r\033[K%s %s", currentFrame, currentText)
 				step++
+			}
+		}
+	}()
+
+	return func() {
+		close(stop)
+		<-done
+	}
+}
+
+func startPromptSpinner() func() {
+	stop := make(chan struct{})
+	done := make(chan struct{})
+
+	fmt.Printf("\n%s(o_o) %sexecute? (y/n): %s\0337", colorGreen, BoldGreen, Reset)
+
+	go func() {
+		defer close(done)
+		for {
+			select {
+			case <-stop:
+				return
+			case <-time.After(1 * time.Second):
+				fmt.Printf("\0337\r%s(-_-)%s\0338", colorGreen, Reset)
+
+				select {
+				case <-stop:
+					return
+				case <-time.After(150 * time.Millisecond):
+					fmt.Printf("\0337\r%s(o_o)%s\0338", colorGreen, Reset)
+				}
 			}
 		}
 	}()

@@ -1,12 +1,16 @@
 package ipc
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"jumie/internal/ai"
 	"jumie/internal/indexer"
 	"log"
 	"net"
 	"os"
+	"os/exec"
+	"time"
 )
 
 type Server struct {
@@ -44,11 +48,26 @@ func (s *Server) Listen() {
 			continue
 		}
 
-		go doRequest(conn)
+		go func(c net.Conn) {
+			req := new(Request)
+
+			err := json.NewDecoder(c).Decode(&req)
+			if err != nil {
+				fmt.Printf("data decode error: %v", err)
+				return
+			}
+
+			switch req.Type {
+			case "plan":
+				go s.doPlan(req.AIMessage, c)
+			case "exec":
+				go s.doExec(req.Commands, c)
+			}
+		}(conn)
 	}
 }
 
-func doRequest(c net.Conn) {
+func (s *Server) doPlan(msg string, c net.Conn) {
 	defer func(c net.Conn) {
 		err := c.Close()
 		if err != nil {
@@ -56,30 +75,71 @@ func doRequest(c net.Conn) {
 		}
 	}(c)
 
-	var req Request
-	err := json.NewDecoder(c).Decode(&req)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	client, err := ai.NewClient(os.Getenv("GEMINI_API_KEY"), os.Getenv("GEMINI_MODEL"))
 	if err != nil {
-		fmt.Printf("data decode error: %v", err)
+		fmt.Printf("ai error: %v\n", err)
 		return
 	}
 
-	msg, err := req.Payload.MarshalJSON()
+	err = client.UpdateCache(s.cache.Get())
 	if err != nil {
-		fmt.Printf("payload decode error: %v", err)
+		fmt.Printf("update cache error: %v", err)
 		return
 	}
-	log.Printf("received data %s\n", msg)
 
-	resp := Response{
-		Command: "some command",
-		Payload: req.Payload,
+	plan, err := client.GeneratePlan(ctx, msg)
+
+	if err != nil {
+		fmt.Printf("plan error: %v\n", err)
+		return
 	}
 
-	data, err := json.Marshal(resp)
+	data, err := json.Marshal(plan)
 
 	_, err = c.Write(data)
 	if err != nil {
 		log.Printf("write error: %v", err)
+		return
+	}
+}
+
+func (s *Server) doExec(commands []string, c net.Conn) {
+	defer func(c net.Conn) {
+		err := c.Close()
+		if err != nil {
+			log.Printf("close error: %v", err)
+		}
+	}(c)
+
+	shell := s.cache.Get().Shell
+	if shell == "" {
+		shell = "/bin/sh"
+	}
+
+	for _, cmd := range commands {
+		_, err := fmt.Fprintf(c, "\nrunning: %s\n", cmd)
+		if err != nil {
+			return
+		}
+
+		cmd := exec.Command(shell, "-c", cmd)
+		cmd.Stdout = c
+		cmd.Stderr = c
+
+		if err := cmd.Run(); err != nil {
+			_, err := fmt.Fprintf(c, "error executing command: %v\n", err)
+			if err != nil {
+				return
+			}
+			return
+		}
+	}
+
+	_, err := fmt.Fprintln(c, "\nsuccessfully executed all commands!")
+	if err != nil {
 		return
 	}
 }

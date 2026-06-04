@@ -2,6 +2,8 @@ package ipc
 
 import (
 	"encoding/json"
+	"io"
+	"jumie/internal/ai"
 	"net"
 	"os"
 	"os/user"
@@ -12,8 +14,10 @@ type Client struct {
 	Conn       net.Conn
 }
 
-type msgPayload struct {
-	AIMessage string `json:"ai_message"`
+type Request struct {
+	Type      string   `json:"type"`
+	AIMessage string   `json:"ai_message"`
+	Commands  []string `json:"commands"`
 }
 
 func NewClient() (*Client, error) {
@@ -30,28 +34,35 @@ func NewClient() (*Client, error) {
 		path = os.Getenv("HOME") + "/.local/share/jumie/jumie.sock"
 	}
 
-	conn, err := net.Dial("unix", path)
-	if err != nil {
-		return nil, err
-	}
-
 	return &Client{
 		socketPath: path,
-		Conn:       conn,
+		Conn:       nil,
 	}, nil
 }
 
-func (c *Client) SendMessage(msg string) (*Response, error) {
-	bytes, err := json.Marshal(msgPayload{msg})
+func (c *Client) openConn() error {
+	conn, err := net.Dial("unix", c.socketPath)
+	if err != nil {
+		return err
+	}
+
+	c.Conn = conn
+	return nil
+}
+
+func (c *Client) RequestPlan(msg string) (*ai.Plan, error) {
+	err := c.openConn()
 	if err != nil {
 		return nil, err
 	}
+	defer func(Conn net.Conn) {
+		err := Conn.Close()
+		if err != nil {
+			return
+		}
+	}(c.Conn)
 
-	data := Request{
-		Payload: json.RawMessage(bytes),
-	}
-
-	bytes, err = json.Marshal(data)
+	bytes, err := json.Marshal(Request{"plan", msg, nil})
 	if err != nil {
 		return nil, err
 	}
@@ -61,11 +72,37 @@ func (c *Client) SendMessage(msg string) (*Response, error) {
 		return nil, err
 	}
 
-	var resp Response
+	var resp ai.Plan
 	err = json.NewDecoder(c.Conn).Decode(&resp)
 	if err != nil {
 		return nil, err
 	}
 
 	return &resp, nil
+}
+
+func (c *Client) DoPlan(plan *ai.Plan) error {
+	err := c.openConn()
+	if err != nil {
+		return err
+	}
+	defer func(Conn net.Conn) {
+		err := Conn.Close()
+		if err != nil {
+			return
+		}
+	}(c.Conn)
+
+	var commands []string
+	for _, step := range plan.Steps {
+		commands = append(commands, step.Command)
+	}
+
+	req := Request{"exec", "", commands}
+	if err := json.NewEncoder(c.Conn).Encode(req); err != nil {
+		return err
+	}
+
+	_, err = io.Copy(os.Stdout, c.Conn)
+	return err
 }
