@@ -31,7 +31,7 @@ func main() {
 	}(c.Conn)
 
 	stop := startSpinner()
-	resp, err := c.SendMessage(msg)
+	resp, err := c.RequestPlan(msg)
 	stop()
 
 	if err != nil {
@@ -40,8 +40,13 @@ func main() {
 
 	confirm := do(resp)
 
-	if confirm {
+	if !confirm {
+		os.Exit(0)
+	}
 
+	err = c.DoPlan(resp)
+	if err != nil {
+		log.Fatalf("error executing plan: %v\n", err)
 	}
 }
 

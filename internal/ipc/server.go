@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/exec"
 	"time"
 )
 
@@ -47,14 +48,26 @@ func (s *Server) Listen() {
 			continue
 		}
 
-		go s.doRequest(conn)
+		go func() {
+			req := new(Request)
+
+			err = json.NewDecoder(conn).Decode(&req)
+			if err != nil {
+				fmt.Printf("data decode error: %v", err)
+				return
+			}
+
+			switch req.Type {
+			case "plan":
+				go s.doPlan(req.AIMessage, conn)
+			case "exec":
+				go s.doExec(req.Commands, conn)
+			}
+		}()
 	}
 }
 
-func (s *Server) doRequest(c net.Conn) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	defer cancel()
-
+func (s *Server) doPlan(msg string, c net.Conn) {
 	defer func(c net.Conn) {
 		err := c.Close()
 		if err != nil {
@@ -62,15 +75,8 @@ func (s *Server) doRequest(c net.Conn) {
 		}
 	}(c)
 
-	var req struct {
-		AIMessage string `json:"ai_message"`
-	}
-
-	err := json.NewDecoder(c).Decode(&req)
-	if err != nil {
-		fmt.Printf("data decode error: %v", err)
-		return
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
 
 	client, err := ai.NewClient(os.Getenv("GEMINI_API_KEY"), os.Getenv("GEMINI_MODEL"))
 	if err != nil {
@@ -84,7 +90,7 @@ func (s *Server) doRequest(c net.Conn) {
 		return
 	}
 
-	plan, err := client.GeneratePlan(ctx, req.AIMessage)
+	plan, err := client.GeneratePlan(ctx, msg)
 
 	if err != nil {
 		fmt.Printf("plan error: %v\n", err)
@@ -96,6 +102,44 @@ func (s *Server) doRequest(c net.Conn) {
 	_, err = c.Write(data)
 	if err != nil {
 		log.Printf("write error: %v", err)
+		return
+	}
+}
+
+func (s *Server) doExec(commands []string, c net.Conn) {
+	defer func(c net.Conn) {
+		err := c.Close()
+		if err != nil {
+			log.Printf("close error: %v", err)
+		}
+	}(c)
+
+	shell := s.cache.Get().Shell
+	if shell == "" {
+		shell = "/bin/sh"
+	}
+
+	for _, cmd := range commands {
+		_, err := fmt.Fprintf(c, "\nrunning: %s\n", cmd)
+		if err != nil {
+			return
+		}
+
+		cmd := exec.Command(shell, "-c", cmd)
+		cmd.Stdout = c
+		cmd.Stderr = c
+
+		if err := cmd.Run(); err != nil {
+			_, err := fmt.Fprintf(c, "error executing command: %v\n", err)
+			if err != nil {
+				return
+			}
+			return
+		}
+	}
+
+	_, err := fmt.Fprintln(c, "\nsuccessfully executed all commands!")
+	if err != nil {
 		return
 	}
 }
