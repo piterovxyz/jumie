@@ -48,10 +48,10 @@ func (s *Server) Listen() {
 			continue
 		}
 
-		go func() {
+		go func(c net.Conn) {
 			req := new(Request)
 
-			err = json.NewDecoder(conn).Decode(&req)
+			err := json.NewDecoder(c).Decode(&req)
 			if err != nil {
 				fmt.Printf("data decode error: %v", err)
 				return
@@ -59,11 +59,11 @@ func (s *Server) Listen() {
 
 			switch req.Type {
 			case "plan":
-				go s.doPlan(req.AIMessage, conn)
+				go s.doPlan(req.AIMessage, c)
 			case "exec":
-				go s.doExec(req.Commands, conn)
+				go s.doExec(req.Commands, c)
 			}
-		}()
+		}(conn)
 	}
 }
 

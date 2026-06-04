@@ -6,7 +6,6 @@ import (
 	"jumie/internal/ai"
 	"jumie/internal/ipc"
 	"log"
-	"net"
 	"os"
 	"strings"
 	"time"
@@ -23,12 +22,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("error creating ipc client: %v\n", err)
 	}
-	defer func(Conn net.Conn) {
-		err := Conn.Close()
-		if err != nil {
-			log.Fatalf("error closing connection: %v\n", err)
-		}
-	}(c.Conn)
 
 	stop := startSpinner()
 	resp, err := c.RequestPlan(msg)
