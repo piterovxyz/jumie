@@ -40,19 +40,19 @@ release: check-go ## build multi-platform release archives into dist/releases
 	@GOOS=linux GOARCH=amd64 go build -o dist/releases/linux-amd64/jum ./cmd/jumie
 	@GOOS=linux GOARCH=amd64 go build -o dist/releases/linux-amd64/jumied ./cmd/jumied
 	@cp jumied.service dist/releases/linux-amd64/
-	@tar -czf dist/releases/jumie-linux-amd64.tar.gz -C dist/releases/linux-amd64 jum jumied jumied.service
+	@COPYFILE_DISABLE=1 tar -czf dist/releases/jumie-linux-amd64.tar.gz -C dist/releases/linux-amd64 jum jumied jumied.service
 	@GOOS=linux GOARCH=arm64 go build -o dist/releases/linux-arm64/jum ./cmd/jumie
 	@GOOS=linux GOARCH=arm64 go build -o dist/releases/linux-arm64/jumied ./cmd/jumied
 	@cp jumied.service dist/releases/linux-arm64/
-	@tar -czf dist/releases/jumie-linux-arm64.tar.gz -C dist/releases/linux-arm64 jum jumied jumied.service
+	@COPYFILE_DISABLE=1 tar -czf dist/releases/jumie-linux-arm64.tar.gz -C dist/releases/linux-arm64 jum jumied jumied.service
 	@GOOS=darwin GOARCH=amd64 go build -o dist/releases/darwin-amd64/jum ./cmd/jumie
 	@GOOS=darwin GOARCH=amd64 go build -o dist/releases/darwin-amd64/jumied ./cmd/jumied
 	@cp org.jumie.jumied.plist dist/releases/darwin-amd64/
-	@tar -czf dist/releases/jumie-darwin-amd64.tar.gz -C dist/releases/darwin-amd64 jum jumied org.jumie.jumied.plist
+	@COPYFILE_DISABLE=1 tar -czf dist/releases/jumie-darwin-amd64.tar.gz -C dist/releases/darwin-amd64 jum jumied org.jumie.jumied.plist
 	@GOOS=darwin GOARCH=arm64 go build -o dist/releases/darwin-arm64/jum ./cmd/jumie
 	@GOOS=darwin GOARCH=arm64 go build -o dist/releases/darwin-arm64/jumied ./cmd/jumied
 	@cp org.jumie.jumied.plist dist/releases/darwin-arm64/
-	@tar -czf dist/releases/jumie-darwin-arm64.tar.gz -C dist/releases/darwin-arm64 jum jumied org.jumie.jumied.plist
+	@COPYFILE_DISABLE=1 tar -czf dist/releases/jumie-darwin-arm64.tar.gz -C dist/releases/darwin-arm64 jum jumied org.jumie.jumied.plist
 	@rm -rf dist/releases/linux-amd64 dist/releases/linux-arm64 dist/releases/darwin-amd64 dist/releases/darwin-arm64
 	@printf "$(color_success)releases built successfully in dist/releases/$(color_reset)\n"
 
