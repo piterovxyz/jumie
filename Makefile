@@ -8,7 +8,7 @@ color_warn    := \033[33m
 
 OS := $(shell uname -s)
 
-.PHONY: build clean install uninstall help check-go check-systemd
+.PHONY: build clean install uninstall help check-go check-systemd release
 
 .DEFAULT_GOAL := help
 
@@ -32,6 +32,29 @@ build: check-go ## build jumie and jumied binaries into dist
 	@go build -o dist/jum ./cmd/jumie
 	@go build -o dist/jumied ./cmd/jumied
 	@printf "$(color_success)build completed successfully! binaries are in dist/$(color_reset)\n"
+
+release: check-go ## build multi-platform release archives into dist/releases
+	@printf "$(color_info)building releases...$(color_reset)\n"
+	@rm -rf dist/releases
+	@mkdir -p dist/releases
+	@GOOS=linux GOARCH=amd64 go build -o dist/releases/linux-amd64/jum ./cmd/jumie
+	@GOOS=linux GOARCH=amd64 go build -o dist/releases/linux-amd64/jumied ./cmd/jumied
+	@cp jumied.service dist/releases/linux-amd64/
+	@tar -czf dist/releases/jumie-linux-amd64.tar.gz -C dist/releases/linux-amd64 jum jumied jumied.service
+	@GOOS=linux GOARCH=arm64 go build -o dist/releases/linux-arm64/jum ./cmd/jumie
+	@GOOS=linux GOARCH=arm64 go build -o dist/releases/linux-arm64/jumied ./cmd/jumied
+	@cp jumied.service dist/releases/linux-arm64/
+	@tar -czf dist/releases/jumie-linux-arm64.tar.gz -C dist/releases/linux-arm64 jum jumied jumied.service
+	@GOOS=darwin GOARCH=amd64 go build -o dist/releases/darwin-amd64/jum ./cmd/jumie
+	@GOOS=darwin GOARCH=amd64 go build -o dist/releases/darwin-amd64/jumied ./cmd/jumied
+	@cp org.jumie.jumied.plist dist/releases/darwin-amd64/
+	@tar -czf dist/releases/jumie-darwin-amd64.tar.gz -C dist/releases/darwin-amd64 jum jumied org.jumie.jumied.plist
+	@GOOS=darwin GOARCH=arm64 go build -o dist/releases/darwin-arm64/jum ./cmd/jumie
+	@GOOS=darwin GOARCH=arm64 go build -o dist/releases/darwin-arm64/jumied ./cmd/jumied
+	@cp org.jumie.jumied.plist dist/releases/darwin-arm64/
+	@tar -czf dist/releases/jumie-darwin-arm64.tar.gz -C dist/releases/darwin-arm64 jum jumied org.jumie.jumied.plist
+	@rm -rf dist/releases/linux-amd64 dist/releases/linux-arm64 dist/releases/darwin-amd64 dist/releases/darwin-arm64
+	@printf "$(color_success)releases built successfully in dist/releases/$(color_reset)\n"
 
 clean: ## remove built binaries and temporary artifacts
 	@printf "$(color_info)cleaning dist/...$(color_reset)\n"
