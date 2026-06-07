@@ -92,7 +92,7 @@ func (c *Client) GeneratePlan(ctx context.Context, query string) (*Plan, error) 
 		Prompt:  query,
 		System:  c.systemInstructions,
 		Stream:  false,
-		Options: map[string]any{"num_ctx": 8192},
+		Options: map[string]any{"num_ctx": 4096},
 	}
 
 	jbody, err := json.Marshal(body)
@@ -137,12 +137,14 @@ func (c *Client) GeneratePlan(ctx context.Context, query string) (*Plan, error) 
 
 func (c *Client) GenerateRecon(ctx context.Context, query string) ([]string, string, error) {
 	body := Request{
-		Model:   c.cfg.Model,
-		Prompt:  query,
-		System:  reconSystem,
-		Stream:  false,
-		Format:  "json",
-		Options: map[string]any{"num_ctx": 8192},
+		Model:  c.cfg.Model,
+		Prompt: query,
+		System: reconSystem,
+		Stream: false,
+		Format: "json",
+		Options: map[string]any{
+			"num_ctx": 2048,
+		},
 	}
 
 	jbody, err := json.Marshal(body)
@@ -201,7 +203,12 @@ func (c *Client) GenerateRecon(ctx context.Context, query string) ([]string, str
 func parseResponse(j string) (*Plan, error) {
 	var reasoning string
 
-	if start := strings.Index(j, "<|channel>thought"); start != -1 {
+	if start := strings.Index(j, "<|think|>"); start != -1 {
+		if end := strings.Index(j, "</|think|>"); end != -1 && end > start {
+			reasoning = strings.TrimSpace(j[start+9 : end])
+			j = strings.TrimSpace(j[end+10:])
+		}
+	} else if start := strings.Index(j, "<|channel>thought"); start != -1 {
 		if end := strings.Index(j, "<channel|>"); end != -1 && end > start {
 			reasoning = strings.TrimSpace(j[start+17 : end])
 			j = strings.TrimSpace(j[end+10:])
