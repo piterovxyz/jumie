@@ -19,7 +19,7 @@ var system string
 //go:embed recon.md
 var reconSystem string
 
-const ollamaUrl = "http://127.0.0.1:11434/api/generate"
+const ollamaUrl = "http://127.0.0.1:49312/api/generate"
 
 type Client struct {
 	*http.Client

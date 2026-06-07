@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"jumie/internal/ai"
 	"jumie/internal/config"
+	"jumie/internal/daemon"
 	"jumie/internal/indexer"
 	"log"
 	"net"
@@ -69,6 +70,10 @@ func (s *Server) Listen() {
 				s.doPlan(req.AIMessage, c)
 			case "exec":
 				s.doExec(req.Commands, c)
+			case "ping":
+				s.doPing(c)
+			case "start_ollama":
+				s.doStartOllama(c)
 			}
 		}(conn)
 	}
@@ -164,4 +169,19 @@ func (s *Server) doExec(commands []string, c net.Conn) {
 	if err != nil {
 		return
 	}
+}
+
+func (s *Server) doPing(c net.Conn) {
+	defer c.Close()
+	c.Write([]byte(`{"status":"ok"}`))
+}
+
+func (s *Server) doStartOllama(c net.Conn) {
+	defer c.Close()
+	err := daemon.StartOllama()
+	if err != nil {
+		c.Write([]byte(fmt.Sprintf(`{"status":"error","message":"%s"}`, err.Error())))
+		return
+	}
+	c.Write([]byte(`{"status":"ok"}`))
 }

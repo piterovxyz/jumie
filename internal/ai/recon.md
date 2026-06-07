@@ -10,14 +10,14 @@ Your ONLY job is to identify the raw CLI binaries/tools required to fulfill the 
 
 ### EXAMPLES
 
-**User Request:** "найди 5 самых больших файлов в загрузках"
+**User Request:** "find the 5 largest files in downloads"
 ```json
 {
   "tools": ["find", "sort", "head"]
 }
 ```
 
-**User Request:** "покажи открытые порты"
+**User Request:** "show open ports"
 ```json
 {
   "tools": ["lsof", "netstat", "grep"]

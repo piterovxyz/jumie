@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"fmt"
 	"jumie/internal/ai"
+	"jumie/internal/daemon"
+	"jumie/internal/installer"
 	"jumie/internal/ipc"
 	"log"
 	"os"
@@ -21,6 +23,14 @@ func main() {
 	c, err := ipc.NewClient()
 	if err != nil {
 		log.Fatalf("error creating ipc client: %v\n", err)
+	}
+
+	if err := c.Ping(); err != nil {
+		log.Fatalf("daemon is not running! please start jumied first.\n")
+	}
+
+	if err := checkDeps(c); err != nil {
+		log.Fatalf("dependency setup aborted: %v\n", err)
 	}
 
 	stop := startSpinner()
@@ -85,4 +95,47 @@ func do(plan *ai.Plan) bool {
 
 	input = strings.TrimSpace(strings.ToLower(input))
 	return input == "y" || input == "yes"
+}
+
+func checkDeps(c *ipc.Client) error {
+	err := c.StartOllama()
+	if err == nil {
+		return nil
+	}
+
+	if !strings.Contains(err.Error(), "not installed") {
+		return fmt.Errorf("daemon ollama error: %v", err)
+	}
+
+	fmt.Print(Yellow + "jumie is required to install ollama. install now? (y/n): " + Reset)
+	reader := bufio.NewReader(os.Stdin)
+	input, err := reader.ReadString('\n')
+	if err != nil {
+		return err
+	}
+	input = strings.TrimSpace(strings.ToLower(input))
+	if input != "y" && input != "yes" {
+		return fmt.Errorf("installation aborted")
+	}
+
+	err = installer.InstallOllama(func(p string) {
+		fmt.Println(Cyan + p + Reset)
+	})
+	if err != nil {
+		return err
+	}
+
+	err = c.StartOllama()
+	if err != nil {
+		return fmt.Errorf("failed to start ollama after install: %v", err)
+	}
+
+	err = daemon.PullModel(func(p string) {
+		fmt.Print(Cyan + p + Reset)
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

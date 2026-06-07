@@ -2,6 +2,7 @@ package ipc
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"jumie/internal/ai"
 	"net"
@@ -105,4 +106,46 @@ func (c *Client) DoPlan(plan *ai.Plan) error {
 
 	_, err = io.Copy(os.Stdout, c.Conn)
 	return err
+}
+
+func (c *Client) Ping() error {
+	err := c.openConn()
+	if err != nil {
+		return err
+	}
+	defer c.Conn.Close()
+
+	req := Request{Type: "ping"}
+	json.NewEncoder(c.Conn).Encode(req)
+
+	var res struct {
+		Status  string `json:"status"`
+		Message string `json:"message"`
+	}
+	json.NewDecoder(c.Conn).Decode(&res)
+	if res.Status == "error" {
+		return fmt.Errorf(res.Message)
+	}
+	return nil
+}
+
+func (c *Client) StartOllama() error {
+	err := c.openConn()
+	if err != nil {
+		return err
+	}
+	defer c.Conn.Close()
+
+	req := Request{Type: "start_ollama"}
+	json.NewEncoder(c.Conn).Encode(req)
+
+	var res struct {
+		Status  string `json:"status"`
+		Message string `json:"message"`
+	}
+	json.NewDecoder(c.Conn).Decode(&res)
+	if res.Status == "error" {
+		return fmt.Errorf(res.Message)
+	}
+	return nil
 }
