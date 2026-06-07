@@ -33,8 +33,8 @@ func main() {
 		log.Fatalf("dependency setup aborted: %v\n", err)
 	}
 
-	stop := startSpinner()
-	resp, err := c.RequestPlan(msg)
+	stop, updateTip := startSpinner()
+	resp, err := c.RequestPlan(msg, updateTip)
 	stop()
 
 	if err != nil {

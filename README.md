@@ -66,6 +66,4 @@ running: system_profiler SPHardwareDataType SPSoftwareDataType | grep -E 'Model 
       Processor Name: Apple M4 Pro
       Memory: 16 GB
       System Version: macOS 15.5 (24F70)
-
-successfully executed all commands!
 ```

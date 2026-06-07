@@ -135,7 +135,7 @@ func (c *Client) GeneratePlan(ctx context.Context, query string) (*Plan, error) 
 	return result, nil
 }
 
-func (c *Client) GenerateRecon(ctx context.Context, query string) ([]string, error) {
+func (c *Client) GenerateRecon(ctx context.Context, query string) ([]string, string, error) {
 	body := Request{
 		Model:   c.cfg.Model,
 		Prompt:  query,
@@ -147,17 +147,17 @@ func (c *Client) GenerateRecon(ctx context.Context, query string) ([]string, err
 
 	jbody, err := json.Marshal(body)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", ollamaUrl, bytes.NewReader(jbody))
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	resp, err := c.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	defer func(Body io.ReadCloser) {
 		err := Body.Close()
@@ -168,12 +168,12 @@ func (c *Client) GenerateRecon(ctx context.Context, query string) ([]string, err
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("ollama error (status %d): %s", resp.StatusCode, string(bodyBytes))
+		return nil, "", fmt.Errorf("ollama error (status %d): %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	var res Response
 	if err = json.NewDecoder(resp.Body).Decode(&res); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	j := res.Response
@@ -188,13 +188,14 @@ func (c *Client) GenerateRecon(ctx context.Context, query string) ([]string, err
 		j = j[first : last+1]
 	}
 	var reconRes struct {
+		Tip   string   `json:"tip"`
 		Tools []string `json:"tools"`
 	}
 
 	if err := json.Unmarshal([]byte(strings.TrimSpace(j)), &reconRes); err != nil {
-		return nil, fmt.Errorf("failed to parse recon tools: %w\nRaw string: %s", err, j)
+		return nil, "", fmt.Errorf("failed to parse recon tools: %w\nRaw string: %s", err, j)
 	}
-	return reconRes.Tools, nil
+	return reconRes.Tools, reconRes.Tip, nil
 }
 
 func parseResponse(j string) (*Plan, error) {

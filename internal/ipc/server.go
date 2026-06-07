@@ -102,9 +102,15 @@ func (s *Server) doPlan(msg string, c net.Conn) {
 	}
 
 	log.Printf("[daemon] starting recon phase...")
-	toolsToCheck, err := client.GenerateRecon(ctx, msg)
+	toolsToCheck, tip, err := client.GenerateRecon(ctx, msg)
 	if err != nil {
 		log.Printf("[daemon] recon error: %v", err)
+		return
+	}
+
+	tipResp := map[string]any{"type": "tip", "tip_msg": tip}
+	err = json.NewEncoder(c).Encode(tipResp)
+	if err != nil {
 		return
 	}
 
@@ -124,7 +130,8 @@ func (s *Server) doPlan(msg string, c net.Conn) {
 		return
 	}
 
-	data, err := json.Marshal(plan)
+	planResp := map[string]any{"type": "plan", "plan": plan}
+	data, err := json.Marshal(planResp)
 
 	_, err = c.Write(data)
 	if err != nil {
@@ -164,24 +171,38 @@ func (s *Server) doExec(commands []string, c net.Conn) {
 			return
 		}
 	}
-
-	_, err := fmt.Fprintln(c, "\nsuccessfully executed all commands!")
-	if err != nil {
-		return
-	}
 }
 
 func (s *Server) doPing(c net.Conn) {
-	defer c.Close()
-	c.Write([]byte(`{"status":"ok"}`))
+	defer func(c net.Conn) {
+		err := c.Close()
+		if err != nil {
+			return
+		}
+	}(c)
+	_, err := c.Write([]byte(`{"status":"ok"}`))
+	if err != nil {
+		return
+	}
 }
 
 func (s *Server) doStartOllama(c net.Conn) {
-	defer c.Close()
+	defer func(c net.Conn) {
+		err := c.Close()
+		if err != nil {
+			return
+		}
+	}(c)
 	err := daemon.StartOllama()
 	if err != nil {
-		c.Write([]byte(fmt.Sprintf(`{"status":"error","message":"%s"}`, err.Error())))
+		_, err := c.Write([]byte(fmt.Sprintf(`{"status":"error","message":"%s"}`, err.Error())))
+		if err != nil {
+			return
+		}
 		return
 	}
-	c.Write([]byte(`{"status":"ok"}`))
+	_, err = c.Write([]byte(`{"status":"ok"}`))
+	if err != nil {
+		return
+	}
 }

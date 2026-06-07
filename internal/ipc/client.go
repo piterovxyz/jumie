@@ -51,7 +51,7 @@ func (c *Client) openConn() error {
 	return nil
 }
 
-func (c *Client) RequestPlan(msg string) (*ai.Plan, error) {
+func (c *Client) RequestPlan(msg string, onTip func(string)) (*ai.Plan, error) {
 	err := c.openConn()
 	if err != nil {
 		return nil, err
@@ -73,13 +73,25 @@ func (c *Client) RequestPlan(msg string) (*ai.Plan, error) {
 		return nil, err
 	}
 
-	var resp ai.Plan
-	err = json.NewDecoder(c.Conn).Decode(&resp)
-	if err != nil {
-		return nil, err
-	}
+	decoder := json.NewDecoder(c.Conn)
+	for {
+		var resp struct {
+			Type   string   `json:"type"`
+			TipMsg string   `json:"tip_msg,omitempty"`
+			Plan   *ai.Plan `json:"plan,omitempty"`
+		}
+		if err := decoder.Decode(&resp); err != nil {
+			return nil, err
+		}
 
-	return &resp, nil
+		if resp.Type == "tip" {
+			if onTip != nil {
+				onTip(resp.TipMsg)
+			}
+		} else if resp.Type == "plan" {
+			return resp.Plan, nil
+		}
+	}
 }
 
 func (c *Client) DoPlan(plan *ai.Plan) error {
