@@ -82,7 +82,7 @@ func (s *Server) doPlan(msg string, c net.Conn) {
 		}
 	}(c)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
 	defer cancel()
 
 	cfg, err := config.Load()
@@ -96,12 +96,22 @@ func (s *Server) doPlan(msg string, c net.Conn) {
 		return
 	}
 
-	err = client.UpdateCache(s.cache.Get())
+	fmt.Println("start recon phase...")
+	toolsToCheck, err := client.GenerateRecon(ctx, msg)
 	if err != nil {
-		fmt.Printf("update cache error: %v", err)
+		fmt.Printf("recon error: %v\n", err)
 		return
 	}
 
+	fmt.Printf("recon wants to check: %v\n", toolsToCheck)
+	checkedTools := indexer.CheckBinaries(toolsToCheck)
+	err = client.UpdateCache(s.cache.Get(), checkedTools)
+	if err != nil {
+		fmt.Printf("update cache error: %v\n", err)
+		return
+	}
+
+	fmt.Println("start planning phase...")
 	plan, err := client.GeneratePlan(ctx, msg)
 
 	if err != nil {

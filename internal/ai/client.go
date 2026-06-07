@@ -16,6 +16,11 @@ import (
 //go:embed ai.md
 var system string
 
+//go:embed recon.md
+var reconSystem string
+
+const ollamaUrl = "http://127.0.0.1:11434/api/generate"
+
 type Client struct {
 	*http.Client
 	cfg                *config.Config
@@ -23,7 +28,8 @@ type Client struct {
 }
 
 type Plan struct {
-	Steps []Step `json:"steps"`
+	Reasoning string `json:"reasoning"`
+	Steps     []Step `json:"steps"`
 }
 
 type Step struct {
@@ -32,11 +38,12 @@ type Step struct {
 }
 
 type Request struct {
-	Model  string `json:"model"`
-	Prompt string `json:"prompt"`
-	System string `json:"system"`
-	Format string `json:"format"`
-	Stream bool   `json:"stream"`
+	Model   string         `json:"model"`
+	Prompt  string         `json:"prompt"`
+	System  string         `json:"system"`
+	Format  string         `json:"format"`
+	Stream  bool           `json:"stream"`
+	Options map[string]any `json:"options,omitempty"`
 }
 type Response struct {
 	Response string `json:"response"`
@@ -50,23 +57,43 @@ func NewClient(cfg *config.Config) (*Client, error) {
 	}, nil
 }
 
-func (c *Client) UpdateCache(index indexer.SystemInfo) error {
-	paths := strings.Join(index.Path, ", ")
+func (c *Client) UpdateCache(index indexer.SystemInfo, checkedTools map[string]bool) error {
+	var toolsInfo []string
+	for tool, exists := range checkedTools {
+		status := "missing"
+		if exists {
+			status = "installed"
+		}
+		toolsInfo = append(toolsInfo, fmt.Sprintf("- %s: %s", tool, status))
+	}
+
 	contextText := fmt.Sprintf(
-		"OS: %s\nRelease: %s\nShell: %s\nIs Root: %v\nAvailable Binaries: %s",
-		index.OsType, index.OsRelease, index.Shell, index.IsSU, paths,
+		"OS: %s\nRelease: %s\nShell: %s\nIs Root: %v\n\nChecked Tools:\n%s",
+		index.OsType, index.OsRelease, index.Shell, index.IsSU, strings.Join(toolsInfo, "\n"),
 	)
-	c.systemInstructions = cutContext(c.systemInstructions) + "\n" + contextText
+
+	c.systemInstructions = cutContext(c.systemInstructions) + "\n### SYSTEM CONTEXT\n" + contextText
 	return nil
+}
+
+func cutContext(prompt string) string {
+	marker := "### SYSTEM CONTEXT"
+	idx := strings.Index(prompt, marker)
+	if idx == -1 {
+		return prompt
+	}
+
+	return prompt[:idx+len(marker)]
 }
 
 func (c *Client) GeneratePlan(ctx context.Context, query string) (*Plan, error) {
 	body := Request{
-		Model:  c.cfg.Model,
-		Prompt: query,
-		System: c.systemInstructions,
-		Format: "json",
-		Stream: false,
+		Model:   c.cfg.Model,
+		Prompt:  query,
+		System:  c.systemInstructions,
+		Format:  "json",
+		Stream:  false,
+		Options: map[string]any{"num_ctx": 8192},
 	}
 
 	jbody, err := json.Marshal(body)
@@ -76,7 +103,7 @@ func (c *Client) GeneratePlan(ctx context.Context, query string) (*Plan, error) 
 
 	fmt.Println(string(jbody))
 
-	req, err := http.NewRequestWithContext(ctx, "POST", "http://127.0.0.1:11434/api/generate", bytes.NewReader(jbody))
+	req, err := http.NewRequestWithContext(ctx, "POST", ollamaUrl, bytes.NewReader(jbody))
 	if err != nil {
 		return nil, err
 	}
@@ -113,14 +140,66 @@ func (c *Client) GeneratePlan(ctx context.Context, query string) (*Plan, error) 
 	return result, nil
 }
 
-func cutContext(prompt string) string {
-	marker := "### SYSTEM CONTEXT"
-	idx := strings.Index(prompt, marker)
-	if idx == -1 {
-		return prompt
+func (c *Client) GenerateRecon(ctx context.Context, query string) ([]string, error) {
+	body := Request{
+		Model:   c.cfg.Model,
+		Prompt:  query,
+		System:  reconSystem,
+		Stream:  false,
+		Format:  "json",
+		Options: map[string]any{"num_ctx": 8192},
 	}
 
-	return prompt[:idx+len(marker)]
+	jbody, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", ollamaUrl, bytes.NewReader(jbody))
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("ollama error (status %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var res Response
+	if err = json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return nil, err
+	}
+
+	j := res.Response
+
+	j = strings.TrimPrefix(strings.TrimSpace(j), "```json")
+	j = strings.TrimPrefix(strings.TrimSpace(j), "```")
+	j = strings.TrimSuffix(strings.TrimSpace(j), "```")
+
+	first := strings.Index(j, "{")
+	last := strings.LastIndex(j, "}")
+	if first != -1 && last != -1 && last >= first {
+		j = j[first : last+1]
+	}
+	var reconRes struct {
+		Tools []string `json:"tools"`
+	}
+
+	if err := json.Unmarshal([]byte(strings.TrimSpace(j)), &reconRes); err != nil {
+		return nil, fmt.Errorf("failed to parse recon tools: %w\nRaw string: %s", err, j)
+	}
+	return reconRes.Tools, nil
 }
 
 func parseResponse(j string) (*Plan, error) {

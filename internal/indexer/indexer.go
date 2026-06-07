@@ -18,11 +18,6 @@ func RunIndexer(c *InfoCache) {
 		return
 	}
 
-	path, err := parsePath()
-	if err != nil {
-		return
-	}
-
 	current, err := user.Current()
 	if err != nil {
 		log.Printf("error to get current user: %v\n", err)
@@ -34,13 +29,21 @@ func RunIndexer(c *InfoCache) {
 	info := SystemInfo{
 		osType,
 		osRelease,
-		path,
 		os.Getenv("SHELL"),
 		isRoot,
 		make(map[string]string),
 	}
 
 	c.Write(info)
+}
+
+func CheckBinaries(tools []string) map[string]bool {
+	res := make(map[string]bool)
+	for _, tool := range tools {
+		_, err := exec.LookPath(tool)
+		res[tool] = err == nil
+	}
+	return res
 }
 
 func getSystemRelease() (string, string, error) {
@@ -84,37 +87,4 @@ func getSystemRelease() (string, string, error) {
 	default:
 		return "unknown", "unsupported", errors.New("unsupported system")
 	}
-}
-
-func parsePath() ([]string, error) {
-	var res []string
-	path := os.Getenv("PATH")
-	folders := strings.SplitSeq(path, ":")
-
-	for f := range folders {
-		bins, err := os.ReadDir(f)
-		if err != nil {
-			if !errors.Is(err, os.ErrNotExist) {
-				log.Printf("error reading folder: %v\n", err)
-			}
-			continue
-		}
-
-		for _, bin := range bins {
-			if bin.IsDir() {
-				continue
-			}
-
-			info, err := bin.Info()
-			if err != nil {
-				continue
-			}
-
-			if info.Mode()&0111 != 0 {
-				res = append(res, bin.Name())
-			}
-		}
-	}
-
-	return res, nil
 }
