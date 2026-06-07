@@ -10,7 +10,7 @@ Your ONLY job is to identify the raw CLI binaries/tools required to fulfill the 
 
 ### EXAMPLES
 
-**User Request:** "find the 5 largest files in downloads"
+**User Request:** "найди 5 самых больших файлов в загрузках"
 ```json
 {
   "tools": ["find", "sort", "head"]
