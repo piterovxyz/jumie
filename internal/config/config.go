@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 )
 
 type Config struct {
@@ -28,7 +29,13 @@ func Load() (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			defaultCfg := &Config{Model: "gemma4:e4b"}
+			var defaultCfg *Config
+			switch runtime.GOOS {
+			case "darwin":
+				defaultCfg = &Config{Model: "gemma4:e2b-mlx"}
+			default:
+				defaultCfg = &Config{Model: "gemma4:e2b"}
+			}
 			if saveErr := Save(defaultCfg); saveErr != nil {
 				return nil, fmt.Errorf("failed to create default config: %w", saveErr)
 			}
