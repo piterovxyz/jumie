@@ -1,24 +1,24 @@
 package ai
 
 import (
+	"bytes"
 	"context"
 	_ "embed"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"io"
+	"jumie/internal/config"
 	"jumie/internal/indexer"
+	"net/http"
 	"strings"
-
-	"google.golang.org/genai"
 )
 
 //go:embed ai.md
 var system string
 
 type Client struct {
-	*genai.Client
-	model              string
-	apiKey             string
+	*http.Client
+	cfg                *config.Config
 	systemInstructions string
 }
 
@@ -31,81 +31,86 @@ type Step struct {
 	Description string `json:"description"`
 }
 
-func NewClient(apiKey string) (*Client, error) {
-	if apiKey == "" {
-		return nil, errors.New("api key cannot be empty")
-	}
+type Request struct {
+	Model  string `json:"model"`
+	Prompt string `json:"prompt"`
+	System string `json:"system"`
+	Format string `json:"format"`
+	Stream bool   `json:"stream"`
+}
+type Response struct {
+	Response string `json:"response"`
+}
 
-	model := "gemini-3.1-flash-lite"
-
-	ctx := context.Background()
-	gc, err := genai.NewClient(ctx, &genai.ClientConfig{
-		APIKey:  apiKey,
-		Backend: genai.BackendGeminiAPI,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create genai client: %w", err)
-	}
-
+func NewClient(cfg *config.Config) (*Client, error) {
 	return &Client{
-		gc,
-		model,
-		apiKey,
+		&http.Client{},
+		cfg,
 		system,
 	}, nil
 }
 
-func (c *Client) ValidateKey(ctx context.Context) error {
-	_, err := c.Models.GenerateContent(
-		ctx,
-		c.model,
-		genai.Text("ping"),
-		nil,
-	)
-	if err != nil {
-		return fmt.Errorf("api key validation failed: %w", err)
-	}
-	return nil
-}
-
 func (c *Client) UpdateCache(index indexer.SystemInfo) error {
-	info, err := json.Marshal(index)
-	if err != nil {
-		return err
-	}
-
-	c.systemInstructions = cutContext(c.systemInstructions) + "\n" + string(info)
+	paths := strings.Join(index.Path, ", ")
+	contextText := fmt.Sprintf(
+		"OS: %s\nRelease: %s\nShell: %s\nIs Root: %v\nAvailable Binaries: %s",
+		index.OsType, index.OsRelease, index.Shell, index.IsSU, paths,
+	)
+	c.systemInstructions = cutContext(c.systemInstructions) + "\n" + contextText
 	return nil
 }
 
 func (c *Client) GeneratePlan(ctx context.Context, query string) (*Plan, error) {
-	response, err := c.Models.GenerateContent(
-		ctx,
-		c.model,
-		genai.Text(query),
-		&genai.GenerateContentConfig{
-			SystemInstruction: &genai.Content{
-				Parts: []*genai.Part{
-					{Text: c.systemInstructions},
-				},
-			},
-		},
-	)
+	body := Request{
+		Model:  c.cfg.Model,
+		Prompt: query,
+		System: c.systemInstructions,
+		Format: "json",
+		Stream: false,
+	}
 
+	jbody, err := json.Marshal(body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate content: %w", err)
+		return nil, err
 	}
 
-	if len(response.Candidates) > 0 && len(response.Candidates[0].Content.Parts) > 0 {
-		res, err := parseResponse(response.Candidates[0].Content.Parts[0].Text)
+	fmt.Println(string(jbody))
+
+	req, err := http.NewRequestWithContext(ctx, "POST", "http://127.0.0.1:11434/api/generate", bytes.NewReader(jbody))
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse response: %w", err)
+			return
 		}
+	}(resp.Body)
 
-		return res, nil
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("ollama error (status %d): %s", resp.StatusCode, string(bodyBytes))
 	}
 
-	return nil, errors.New("received empty response from ai model")
+	var res Response
+	err = json.NewDecoder(resp.Body).Decode(&res)
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Println(res.Response)
+
+	result, err := parseResponse(res.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
 }
 
 func cutContext(prompt string) string {

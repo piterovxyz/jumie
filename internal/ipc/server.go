@@ -82,16 +82,15 @@ func (s *Server) doPlan(msg string, c net.Conn) {
 		}
 	}(c)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
 	cfg, err := config.Load()
-	if err != nil || cfg.APIKey == "" {
-		fmt.Fprintln(c, "\nerror: API key is not configured. please run 'jum login <api_key>' first.")
-		return
+	if err != nil {
+		log.Fatalf("error load config: %v\n", err)
 	}
 
-	client, err := ai.NewClient(cfg.APIKey)
+	client, err := ai.NewClient(cfg)
 	if err != nil {
 		fmt.Printf("ai error: %v\n", err)
 		return
