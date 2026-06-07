@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 )
 
 type Config struct {
-	APIKey string `json:"api_key"`
+	Model string `json:"model"`
 }
 
 func GetPath() (string, error) {
@@ -27,6 +28,19 @@ func Load() (*Config, error) {
 
 	data, err := os.ReadFile(path)
 	if err != nil {
+		if os.IsNotExist(err) {
+			var defaultCfg *Config
+			switch runtime.GOOS {
+			case "darwin":
+				defaultCfg = &Config{Model: "gemma4:e2b-mlx"}
+			default:
+				defaultCfg = &Config{Model: "gemma4:e2b"}
+			}
+			if saveErr := Save(defaultCfg); saveErr != nil {
+				return nil, fmt.Errorf("failed to create default config: %w", saveErr)
+			}
+			return defaultCfg, nil
+		}
 		return nil, err
 	}
 
@@ -38,7 +52,7 @@ func Load() (*Config, error) {
 	return &cfg, nil
 }
 
-func Save(apiKey string) error {
+func Save(cfg *Config) error {
 	path, err := GetPath()
 	if err != nil {
 		return err
@@ -49,7 +63,6 @@ func Save(apiKey string) error {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	cfg := Config{APIKey: apiKey}
 	data, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)

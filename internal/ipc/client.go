@@ -2,6 +2,7 @@ package ipc
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"jumie/internal/ai"
 	"net"
@@ -50,7 +51,7 @@ func (c *Client) openConn() error {
 	return nil
 }
 
-func (c *Client) RequestPlan(msg string) (*ai.Plan, error) {
+func (c *Client) RequestPlan(msg string, onTip func(string)) (*ai.Plan, error) {
 	err := c.openConn()
 	if err != nil {
 		return nil, err
@@ -72,13 +73,25 @@ func (c *Client) RequestPlan(msg string) (*ai.Plan, error) {
 		return nil, err
 	}
 
-	var resp ai.Plan
-	err = json.NewDecoder(c.Conn).Decode(&resp)
-	if err != nil {
-		return nil, err
-	}
+	decoder := json.NewDecoder(c.Conn)
+	for {
+		var resp struct {
+			Type   string   `json:"type"`
+			TipMsg string   `json:"tip_msg,omitempty"`
+			Plan   *ai.Plan `json:"plan,omitempty"`
+		}
+		if err := decoder.Decode(&resp); err != nil {
+			return nil, err
+		}
 
-	return &resp, nil
+		if resp.Type == "tip" {
+			if onTip != nil {
+				onTip(resp.TipMsg)
+			}
+		} else if resp.Type == "plan" {
+			return resp.Plan, nil
+		}
+	}
 }
 
 func (c *Client) DoPlan(plan *ai.Plan) error {
@@ -105,4 +118,46 @@ func (c *Client) DoPlan(plan *ai.Plan) error {
 
 	_, err = io.Copy(os.Stdout, c.Conn)
 	return err
+}
+
+func (c *Client) Ping() error {
+	err := c.openConn()
+	if err != nil {
+		return err
+	}
+	defer c.Conn.Close()
+
+	req := Request{Type: "ping"}
+	json.NewEncoder(c.Conn).Encode(req)
+
+	var res struct {
+		Status  string `json:"status"`
+		Message string `json:"message"`
+	}
+	json.NewDecoder(c.Conn).Decode(&res)
+	if res.Status == "error" {
+		return fmt.Errorf(res.Message)
+	}
+	return nil
+}
+
+func (c *Client) StartOllama() error {
+	err := c.openConn()
+	if err != nil {
+		return err
+	}
+	defer c.Conn.Close()
+
+	req := Request{Type: "start_ollama"}
+	json.NewEncoder(c.Conn).Encode(req)
+
+	var res struct {
+		Status  string `json:"status"`
+		Message string `json:"message"`
+	}
+	json.NewDecoder(c.Conn).Decode(&res)
+	if res.Status == "error" {
+		return fmt.Errorf(res.Message)
+	}
+	return nil
 }

@@ -1,29 +1,35 @@
 package ai
 
 import (
+	"bytes"
 	"context"
 	_ "embed"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"io"
+	"jumie/internal/config"
 	"jumie/internal/indexer"
+	"net/http"
 	"strings"
-
-	"google.golang.org/genai"
 )
 
 //go:embed ai.md
 var system string
 
+//go:embed recon.md
+var reconSystem string
+
+const ollamaUrl = "http://127.0.0.1:49312/api/generate"
+
 type Client struct {
-	*genai.Client
-	model              string
-	apiKey             string
+	*http.Client
+	cfg                *config.Config
 	systemInstructions string
 }
 
 type Plan struct {
-	Steps []Step `json:"steps"`
+	Reasoning string `json:"reasoning"`
+	Steps     []Step `json:"steps"`
 }
 
 type Step struct {
@@ -31,81 +37,43 @@ type Step struct {
 	Description string `json:"description"`
 }
 
-func NewClient(apiKey string) (*Client, error) {
-	if apiKey == "" {
-		return nil, errors.New("api key cannot be empty")
-	}
+type Request struct {
+	Model   string         `json:"model"`
+	Prompt  string         `json:"prompt"`
+	System  string         `json:"system"`
+	Format  string         `json:"format"`
+	Stream  bool           `json:"stream"`
+	Options map[string]any `json:"options,omitempty"`
+}
+type Response struct {
+	Response string `json:"response"`
+}
 
-	model := "gemini-3.1-flash-lite"
-
-	ctx := context.Background()
-	gc, err := genai.NewClient(ctx, &genai.ClientConfig{
-		APIKey:  apiKey,
-		Backend: genai.BackendGeminiAPI,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create genai client: %w", err)
-	}
-
+func NewClient(cfg *config.Config) (*Client, error) {
 	return &Client{
-		gc,
-		model,
-		apiKey,
+		&http.Client{},
+		cfg,
 		system,
 	}, nil
 }
 
-func (c *Client) ValidateKey(ctx context.Context) error {
-	_, err := c.Models.GenerateContent(
-		ctx,
-		c.model,
-		genai.Text("ping"),
-		nil,
-	)
-	if err != nil {
-		return fmt.Errorf("api key validation failed: %w", err)
-	}
-	return nil
-}
-
-func (c *Client) UpdateCache(index indexer.SystemInfo) error {
-	info, err := json.Marshal(index)
-	if err != nil {
-		return err
-	}
-
-	c.systemInstructions = cutContext(c.systemInstructions) + "\n" + string(info)
-	return nil
-}
-
-func (c *Client) GeneratePlan(ctx context.Context, query string) (*Plan, error) {
-	response, err := c.Models.GenerateContent(
-		ctx,
-		c.model,
-		genai.Text(query),
-		&genai.GenerateContentConfig{
-			SystemInstruction: &genai.Content{
-				Parts: []*genai.Part{
-					{Text: c.systemInstructions},
-				},
-			},
-		},
-	)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate content: %w", err)
-	}
-
-	if len(response.Candidates) > 0 && len(response.Candidates[0].Content.Parts) > 0 {
-		res, err := parseResponse(response.Candidates[0].Content.Parts[0].Text)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse response: %w", err)
+func (c *Client) UpdateCache(index indexer.SystemInfo, checkedTools map[string]bool) error {
+	var toolsInfo []string
+	for tool, exists := range checkedTools {
+		status := "missing"
+		if exists {
+			status = "installed"
 		}
-
-		return res, nil
+		toolsInfo = append(toolsInfo, fmt.Sprintf("- %s: %s", tool, status))
 	}
 
-	return nil, errors.New("received empty response from ai model")
+	contextText := fmt.Sprintf(
+		"OS: %s\nRelease: %s\nShell: %s\nIs Root: %v\n\nChecked Tools:\n%s",
+		index.OsType, index.OsRelease, index.Shell, index.IsSU, strings.Join(toolsInfo, "\n"),
+	)
+
+	c.systemInstructions = cutContext(c.systemInstructions) + "\n### SYSTEM CONTEXT\n" + contextText
+	return nil
 }
 
 func cutContext(prompt string) string {
@@ -118,7 +86,135 @@ func cutContext(prompt string) string {
 	return prompt[:idx+len(marker)]
 }
 
+func (c *Client) GeneratePlan(ctx context.Context, query string) (*Plan, error) {
+	body := Request{
+		Model:   c.cfg.Model,
+		Prompt:  query,
+		System:  c.systemInstructions,
+		Stream:  false,
+		Options: map[string]any{"num_ctx": 4096},
+	}
+
+	jbody, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", ollamaUrl, bytes.NewReader(jbody))
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("ollama error (status %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var res Response
+	err = json.NewDecoder(resp.Body).Decode(&res)
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := parseResponse(res.Response)
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func (c *Client) GenerateRecon(ctx context.Context, query string) ([]string, string, error) {
+	body := Request{
+		Model:  c.cfg.Model,
+		Prompt: query,
+		System: reconSystem,
+		Stream: false,
+		Format: "json",
+		Options: map[string]any{
+			"num_ctx": 2048,
+		},
+	}
+
+	jbody, err := json.Marshal(body)
+	if err != nil {
+		return nil, "", err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", ollamaUrl, bytes.NewReader(jbody))
+	if err != nil {
+		return nil, "", err
+	}
+
+	resp, err := c.Do(req)
+	if err != nil {
+		return nil, "", err
+	}
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return nil, "", fmt.Errorf("ollama error (status %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var res Response
+	if err = json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return nil, "", err
+	}
+
+	j := res.Response
+
+	j = strings.TrimPrefix(strings.TrimSpace(j), "```json")
+	j = strings.TrimPrefix(strings.TrimSpace(j), "```")
+	j = strings.TrimSuffix(strings.TrimSpace(j), "```")
+
+	first := strings.Index(j, "{")
+	last := strings.LastIndex(j, "}")
+	if first != -1 && last != -1 && last >= first {
+		j = j[first : last+1]
+	}
+	var reconRes struct {
+		Tip   string   `json:"tip"`
+		Tools []string `json:"tools"`
+	}
+
+	if err := json.Unmarshal([]byte(strings.TrimSpace(j)), &reconRes); err != nil {
+		return nil, "", fmt.Errorf("failed to parse recon tools: %w\nRaw string: %s", err, j)
+	}
+	return reconRes.Tools, reconRes.Tip, nil
+}
+
 func parseResponse(j string) (*Plan, error) {
+	var reasoning string
+
+	if start := strings.Index(j, "<|think|>"); start != -1 {
+		if end := strings.Index(j, "</|think|>"); end != -1 && end > start {
+			reasoning = strings.TrimSpace(j[start+9 : end])
+			j = strings.TrimSpace(j[end+10:])
+		}
+	} else if start := strings.Index(j, "<|channel>thought"); start != -1 {
+		if end := strings.Index(j, "<channel|>"); end != -1 && end > start {
+			reasoning = strings.TrimSpace(j[start+17 : end])
+			j = strings.TrimSpace(j[end+10:])
+		}
+	}
+
 	cleaned := strings.TrimSpace(j)
 
 	if strings.HasPrefix(cleaned, "```json") {
@@ -135,6 +231,10 @@ func parseResponse(j string) (*Plan, error) {
 	err := json.Unmarshal([]byte(cleaned), &plan)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON: %w", err)
+	}
+
+	if reasoning != "" {
+		plan.Reasoning = reasoning
 	}
 
 	return &plan, nil
