@@ -28,7 +28,7 @@ func Load() (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			defaultCfg := &Config{Model: "qwen2.5-coder:1.5b"}
+			defaultCfg := &Config{Model: "qwen2.5-coder:3b"}
 			if saveErr := Save(defaultCfg); saveErr != nil {
 				return nil, fmt.Errorf("failed to create default config: %w", saveErr)
 			}
