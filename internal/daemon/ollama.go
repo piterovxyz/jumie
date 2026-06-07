@@ -55,9 +55,6 @@ func StopOllama() {
 			return
 		}
 		err = ollamaCmd.Wait()
-		if err != nil {
-			return
-		}
 		ollamaCmd = nil
 	}
 }

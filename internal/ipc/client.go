@@ -2,7 +2,7 @@ package ipc
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"io"
 	"jumie/internal/ai"
 	"net"
@@ -136,7 +136,7 @@ func (c *Client) Ping() error {
 	}
 	json.NewDecoder(c.Conn).Decode(&res)
 	if res.Status == "error" {
-		return fmt.Errorf(res.Message)
+		return errors.New(res.Message)
 	}
 	return nil
 }
@@ -157,7 +157,7 @@ func (c *Client) StartOllama() error {
 	}
 	json.NewDecoder(c.Conn).Decode(&res)
 	if res.Status == "error" {
-		return fmt.Errorf(res.Message)
+		return errors.New(res.Message)
 	}
 	return nil
 }
