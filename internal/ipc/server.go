@@ -96,26 +96,26 @@ func (s *Server) doPlan(msg string, c net.Conn) {
 		return
 	}
 
-	fmt.Println("start recon phase...")
+	log.Printf("[daemon] starting recon phase...")
 	toolsToCheck, err := client.GenerateRecon(ctx, msg)
 	if err != nil {
-		fmt.Printf("recon error: %v\n", err)
+		log.Printf("[daemon] recon error: %v", err)
 		return
 	}
 
-	fmt.Printf("recon wants to check: %v\n", toolsToCheck)
+	log.Printf("[daemon] recon tools to check: %v", toolsToCheck)
 	checkedTools := indexer.CheckBinaries(toolsToCheck)
 	err = client.UpdateCache(s.cache.Get(), checkedTools)
 	if err != nil {
-		fmt.Printf("update cache error: %v\n", err)
+		log.Printf("[daemon] update cache error: %v", err)
 		return
 	}
 
-	fmt.Println("start planning phase...")
+	log.Printf("[daemon] starting planning phase...")
 	plan, err := client.GeneratePlan(ctx, msg)
 
 	if err != nil {
-		fmt.Printf("plan error: %v\n", err)
+		log.Printf("[daemon] plan error: %v", err)
 		return
 	}
 

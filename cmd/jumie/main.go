@@ -58,6 +58,12 @@ func do(plan *ai.Plan) bool {
 	}
 
 	fmt.Println()
+	if plan.Reasoning != "" {
+		fmt.Print("\033[2m")
+		typewriterPrint("✦ jumie reasoning: "+plan.Reasoning, 3*time.Millisecond)
+		fmt.Print("\033[0m\n")
+	}
+
 	fmt.Println(Bold + Cyan + "✦ jumie plan:" + Reset)
 
 	for _, step := range plan.Steps {

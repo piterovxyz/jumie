@@ -91,7 +91,6 @@ func (c *Client) GeneratePlan(ctx context.Context, query string) (*Plan, error) 
 		Model:   c.cfg.Model,
 		Prompt:  query,
 		System:  c.systemInstructions,
-		Format:  "json",
 		Stream:  false,
 		Options: map[string]any{"num_ctx": 8192},
 	}
@@ -100,8 +99,6 @@ func (c *Client) GeneratePlan(ctx context.Context, query string) (*Plan, error) 
 	if err != nil {
 		return nil, err
 	}
-
-	fmt.Println(string(jbody))
 
 	req, err := http.NewRequestWithContext(ctx, "POST", ollamaUrl, bytes.NewReader(jbody))
 	if err != nil {
@@ -129,8 +126,6 @@ func (c *Client) GeneratePlan(ctx context.Context, query string) (*Plan, error) 
 	if err != nil {
 		return nil, err
 	}
-
-	fmt.Println(res.Response)
 
 	result, err := parseResponse(res.Response)
 	if err != nil {
@@ -203,6 +198,15 @@ func (c *Client) GenerateRecon(ctx context.Context, query string) ([]string, err
 }
 
 func parseResponse(j string) (*Plan, error) {
+	var reasoning string
+
+	if start := strings.Index(j, "<|channel>thought"); start != -1 {
+		if end := strings.Index(j, "<channel|>"); end != -1 && end > start {
+			reasoning = strings.TrimSpace(j[start+17 : end])
+			j = strings.TrimSpace(j[end+10:])
+		}
+	}
+
 	cleaned := strings.TrimSpace(j)
 
 	if strings.HasPrefix(cleaned, "```json") {
@@ -219,6 +223,10 @@ func parseResponse(j string) (*Plan, error) {
 	err := json.Unmarshal([]byte(cleaned), &plan)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON: %w", err)
+	}
+
+	if reasoning != "" {
+		plan.Reasoning = reasoning
 	}
 
 	return &plan, nil
