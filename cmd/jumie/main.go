@@ -2,10 +2,10 @@ package main
 
 import (
 	"bufio"
-	"context"
 	"fmt"
 	"jumie/internal/ai"
-	"jumie/internal/config"
+	"jumie/internal/daemon"
+	"jumie/internal/installer"
 	"jumie/internal/ipc"
 	"log"
 	"os"
@@ -18,73 +18,23 @@ func main() {
 		log.Fatalf("usage: %s <message> or %s login <key>", os.Args[0], os.Args[0])
 	}
 
-	if os.Args[1] == "login" {
-		if len(os.Args) < 3 {
-			log.Fatalf("usage: %s login <api_key>", os.Args[0])
-		}
-		key := os.Args[2]
-
-		fmt.Println("validating API key...")
-		client, err := ai.NewClient(key)
-		if err != nil {
-			log.Fatalf("failed to initialize AI client: %v\n", err)
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		if err := client.ValidateKey(ctx); err != nil {
-			cancel()
-			log.Fatalf("invalid API key: %v\n", err)
-		}
-		cancel()
-
-		if err := config.Save(key); err != nil {
-			log.Fatalf("error saving config: %v\n", err)
-		}
-		fmt.Println("successfully logged in!")
-		return
-	}
-
 	msg := strings.Join(os.Args[1:], " ")
-
-	cfg, err := config.Load()
-	if err != nil || cfg.APIKey == "" {
-		stopPrompt := startLoginPrompt()
-		reader := bufio.NewReader(os.Stdin)
-		key, err := reader.ReadString('\n')
-		stopPrompt()
-		if err != nil {
-			log.Fatalf("\nerror reading api key: %v\n", err)
-		}
-		key = strings.TrimSpace(key)
-		if key == "" {
-			log.Fatalf("\napi key cannot be empty\n")
-		}
-
-		fmt.Println("validating API key...")
-		client, err := ai.NewClient(key)
-		if err != nil {
-			log.Fatalf("failed to initialize AI client: %v\n", err)
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		if err := client.ValidateKey(ctx); err != nil {
-			cancel()
-			fmt.Printf("invalid api key! please provide a valid api key or try again later.\n")
-			return
-		}
-		cancel()
-
-		if err := config.Save(key); err != nil {
-			log.Fatalf("\nerror saving config: %v\n", err)
-		}
-		fmt.Println("successfully logged in!")
-	}
 
 	c, err := ipc.NewClient()
 	if err != nil {
 		log.Fatalf("error creating ipc client: %v\n", err)
 	}
 
-	stop := startSpinner()
-	resp, err := c.RequestPlan(msg)
+	if err := c.Ping(); err != nil {
+		log.Fatalf("daemon is not running! please start jumied first.\n")
+	}
+
+	if err := checkDeps(c); err != nil {
+		log.Fatalf("dependency setup aborted: %v\n", err)
+	}
+
+	stop, updateTip := startSpinner()
+	resp, err := c.RequestPlan(msg, updateTip)
 	stop()
 
 	if err != nil {
@@ -118,6 +68,12 @@ func do(plan *ai.Plan) bool {
 	}
 
 	fmt.Println()
+	if plan.Reasoning != "" {
+		fmt.Print("\033[2m")
+		typewriterPrint("✦ jumie reasoning: "+plan.Reasoning, 3*time.Millisecond)
+		fmt.Print("\033[0m\n")
+	}
+
 	fmt.Println(Bold + Cyan + "✦ jumie plan:" + Reset)
 
 	for _, step := range plan.Steps {
@@ -139,4 +95,47 @@ func do(plan *ai.Plan) bool {
 
 	input = strings.TrimSpace(strings.ToLower(input))
 	return input == "y" || input == "yes"
+}
+
+func checkDeps(c *ipc.Client) error {
+	err := c.StartOllama()
+	if err == nil {
+		return nil
+	}
+
+	if !strings.Contains(err.Error(), "not installed") {
+		return fmt.Errorf("daemon ollama error: %v", err)
+	}
+
+	fmt.Print(Yellow + "jumie is required to install ollama. install now? (y/n): " + Reset)
+	reader := bufio.NewReader(os.Stdin)
+	input, err := reader.ReadString('\n')
+	if err != nil {
+		return err
+	}
+	input = strings.TrimSpace(strings.ToLower(input))
+	if input != "y" && input != "yes" {
+		return fmt.Errorf("installation aborted")
+	}
+
+	err = installer.InstallOllama(func(p string) {
+		fmt.Println(Cyan + p + Reset)
+	})
+	if err != nil {
+		return err
+	}
+
+	err = c.StartOllama()
+	if err != nil {
+		return fmt.Errorf("failed to start ollama after install: %v", err)
+	}
+
+	err = daemon.PullModel(func(p string) {
+		fmt.Print(Cyan + p + Reset)
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

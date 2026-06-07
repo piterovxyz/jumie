@@ -2,17 +2,13 @@ package main
 
 import (
 	"fmt"
-	"math/rand"
 	"time"
 )
 
 const (
 	Reset     = "\033[0m"
 	Bold      = "\033[1m"
-	Dim       = "\033[2m"
-	Gray      = "\033[90m"
 	Cyan      = "\033[36m"
-	Green     = "\033[32m"
 	Yellow    = "\033[33m"
 	BoldGreen = "\033[1;32m"
 )
@@ -38,36 +34,16 @@ var thinkFrames = []string{
 	colorGreen + "(O_o)" + colorReset,
 }
 
-var tips = []string{
-	"thinking...",
-	"pondering...",
-	"contemplating...",
-	"analyzing...",
-	"processing...",
-	"scheming...",
-	"brainstorming...",
-	"deliberating...",
-	"evaluating...",
-	"reflecting...",
-	"plotting...",
-	"wondering...",
-	"calculating...",
-	"reasoning...",
-	"interpreting...",
-	"visualizing...",
-	"deciphering...",
-	"figuring out...",
-	"synthesizing...",
-	"philosophizing...",
-}
-
-func startSpinner() func() {
-	stop := make(chan struct{})
+func startSpinner() (func(), func(string)) {
+	stopChan := make(chan struct{})
 	done := make(chan struct{})
+	tipChan := make(chan string, 1)
 
 	go func() {
 		defer close(done)
-		tip := tips[rand.Intn(len(tips))]
+
+		tip := "..."
+
 		runes := []rune(tip)
 		tipLen := len(runes)
 
@@ -79,9 +55,14 @@ func startSpinner() func() {
 
 		for {
 			select {
-			case <-stop:
+			case <-stopChan:
 				fmt.Print("\r\033[K")
 				return
+			case newTip := <-tipChan:
+				tip = newTip
+				runes = []rune(tip)
+				tipLen = len(runes)
+				step = 0
 			case <-ticker.C:
 				var currentFrame string
 				if step < blinkTicks {
@@ -103,10 +84,19 @@ func startSpinner() func() {
 		}
 	}()
 
-	return func() {
-		close(stop)
+	stopFunc := func() {
+		close(stopChan)
 		<-done
 	}
+
+	updateFunc := func(newTip string) {
+		select {
+		case tipChan <- newTip:
+		default:
+		}
+	}
+
+	return stopFunc, updateFunc
 }
 
 func startPromptSpinner() func() {

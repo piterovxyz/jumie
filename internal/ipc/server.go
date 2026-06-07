@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"jumie/internal/ai"
 	"jumie/internal/config"
+	"jumie/internal/daemon"
 	"jumie/internal/indexer"
 	"log"
 	"net"
@@ -69,6 +70,10 @@ func (s *Server) Listen() {
 				s.doPlan(req.AIMessage, c)
 			case "exec":
 				s.doExec(req.Commands, c)
+			case "ping":
+				s.doPing(c)
+			case "start_ollama":
+				s.doStartOllama(c)
 			}
 		}(conn)
 	}
@@ -82,35 +87,51 @@ func (s *Server) doPlan(msg string, c net.Conn) {
 		}
 	}(c)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
 	defer cancel()
 
 	cfg, err := config.Load()
-	if err != nil || cfg.APIKey == "" {
-		fmt.Fprintln(c, "\nerror: API key is not configured. please run 'jum login <api_key>' first.")
-		return
+	if err != nil {
+		log.Fatalf("error load config: %v\n", err)
 	}
 
-	client, err := ai.NewClient(cfg.APIKey)
+	client, err := ai.NewClient(cfg)
 	if err != nil {
 		fmt.Printf("ai error: %v\n", err)
 		return
 	}
 
-	err = client.UpdateCache(s.cache.Get())
+	log.Printf("[daemon] starting recon phase...")
+	toolsToCheck, tip, err := client.GenerateRecon(ctx, msg)
 	if err != nil {
-		fmt.Printf("update cache error: %v", err)
+		log.Printf("[daemon] recon error: %v", err)
 		return
 	}
 
+	tipResp := map[string]any{"type": "tip", "tip_msg": tip}
+	err = json.NewEncoder(c).Encode(tipResp)
+	if err != nil {
+		return
+	}
+
+	log.Printf("[daemon] recon tools to check: %v", toolsToCheck)
+	checkedTools := indexer.CheckBinaries(toolsToCheck)
+	err = client.UpdateCache(s.cache.Get(), checkedTools)
+	if err != nil {
+		log.Printf("[daemon] update cache error: %v", err)
+		return
+	}
+
+	log.Printf("[daemon] starting planning phase...")
 	plan, err := client.GeneratePlan(ctx, msg)
 
 	if err != nil {
-		fmt.Printf("plan error: %v\n", err)
+		log.Printf("[daemon] plan error: %v", err)
 		return
 	}
 
-	data, err := json.Marshal(plan)
+	planResp := map[string]any{"type": "plan", "plan": plan}
+	data, err := json.Marshal(planResp)
 
 	_, err = c.Write(data)
 	if err != nil {
@@ -150,8 +171,37 @@ func (s *Server) doExec(commands []string, c net.Conn) {
 			return
 		}
 	}
+}
 
-	_, err := fmt.Fprintln(c, "\nsuccessfully executed all commands!")
+func (s *Server) doPing(c net.Conn) {
+	defer func(c net.Conn) {
+		err := c.Close()
+		if err != nil {
+			return
+		}
+	}(c)
+	_, err := c.Write([]byte(`{"status":"ok"}`))
+	if err != nil {
+		return
+	}
+}
+
+func (s *Server) doStartOllama(c net.Conn) {
+	defer func(c net.Conn) {
+		err := c.Close()
+		if err != nil {
+			return
+		}
+	}(c)
+	err := daemon.StartOllama()
+	if err != nil {
+		_, err := c.Write([]byte(fmt.Sprintf(`{"status":"error","message":"%s"}`, err.Error())))
+		if err != nil {
+			return
+		}
+		return
+	}
+	_, err = c.Write([]byte(`{"status":"ok"}`))
 	if err != nil {
 		return
 	}
