@@ -3,6 +3,7 @@ package installer
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -11,7 +12,13 @@ func TestGetOllamaBinPath(t *testing.T) {
 	t.Setenv("HOME", tempDir)
 	t.Setenv("USERPROFILE", tempDir)
 
-	expected := filepath.Join(tempDir, ".local", "share", "jumie", "bin", "ollama")
+	var expected string
+	if runtime.GOOS == "darwin" {
+		expected = filepath.Join(tempDir, ".local", "share", "jumie", "ollama")
+	} else {
+		expected = filepath.Join(tempDir, ".local", "share", "jumie", "bin", "ollama")
+	}
+
 	actual := GetOllamaBinPath()
 
 	if actual != expected {
