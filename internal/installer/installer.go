@@ -10,6 +10,9 @@ import (
 
 func GetOllamaBinPath() string {
 	home, _ := os.UserHomeDir()
+	if runtime.GOOS == "darwin" {
+		return filepath.Join(home, ".local", "share", "jumie", "ollama")
+	}
 	return filepath.Join(home, ".local", "share", "jumie", "bin", "ollama")
 }
 
@@ -19,8 +22,8 @@ func IsOllamaInstalled() bool {
 }
 
 func InstallOllama(progress func(string)) error {
-	binPath := GetOllamaBinPath()
-	targetDir := filepath.Dir(filepath.Dir(binPath))
+	home, _ := os.UserHomeDir()
+	targetDir := filepath.Join(home, ".local", "share", "jumie")
 	err := os.MkdirAll(targetDir, 0755)
 	if err != nil {
 		return err
