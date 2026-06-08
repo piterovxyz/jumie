@@ -20,7 +20,7 @@ func IsOllamaInstalled() bool {
 
 func InstallOllama(progress func(string)) error {
 	binPath := GetOllamaBinPath()
-	targetDir := filepath.Dir(binPath)
+	targetDir := filepath.Dir(filepath.Dir(binPath))
 	err := os.MkdirAll(targetDir, 0755)
 	if err != nil {
 		return err
@@ -35,7 +35,7 @@ func InstallOllama(progress func(string)) error {
 
 	progress(fmt.Sprintf("downloading ollama archive for %s...", runtime.GOOS))
 
-	cmd := exec.Command("sh", "-c", fmt.Sprintf("curl -sL %s | tar -xf - -C %s", url, targetDir))
+	cmd := exec.Command("sh", "-c", fmt.Sprintf("curl -fL --retry 3 --retry-delay 2 %s | tar --zstd -xf - -C %s", url, targetDir))
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
