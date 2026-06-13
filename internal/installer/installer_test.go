@@ -1,9 +1,13 @@
 package installer
 
 import (
+	"context"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -50,6 +54,12 @@ func TestIsOllamaInstalled(t *testing.T) {
 	}
 }
 
+type roundTripFunc func(req *http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
 func TestInstallOllama(t *testing.T) {
 	tempDir := t.TempDir()
 	t.Setenv("HOME", tempDir)
@@ -61,11 +71,12 @@ func TestInstallOllama(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mockShPath := filepath.Join(mockBinDir, "sh")
-	mockShContent := `#!/bin/sh
-exit 0
-`
-	err = os.WriteFile(mockShPath, []byte(mockShContent), 0755)
+	mockTarPath := filepath.Join(mockBinDir, "tar")
+	mockTarContent := `#!/bin/sh
+		exit 0
+	`
+
+	err = os.WriteFile(mockTarPath, []byte(mockTarContent), 0755)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +89,16 @@ exit 0
 		progressMessages = append(progressMessages, msg)
 	}
 
-	err = InstallOllama(progress)
+	mockClient := &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader("")),
+			}, nil
+		}),
+	}
+
+	err = InstallOllama(context.Background(), mockClient, progress)
 	if err != nil {
 		t.Fatalf("expected nil, got %v", err)
 	}
