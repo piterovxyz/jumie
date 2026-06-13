@@ -12,6 +12,10 @@ import (
 )
 
 func GetOllamaBinPath() string {
+	if path, err := exec.LookPath("ollama"); err == nil {
+		return path
+	}
+
 	home, _ := os.UserHomeDir()
 	if runtime.GOOS == "darwin" {
 		return filepath.Join(home, ".local", "share", "jumie", "ollama")
@@ -20,6 +24,10 @@ func GetOllamaBinPath() string {
 }
 
 func IsOllamaInstalled() bool {
+	if _, err := exec.LookPath("ollama"); err == nil {
+		return true
+	}
+
 	_, err := os.Stat(GetOllamaBinPath())
 	return err == nil
 }

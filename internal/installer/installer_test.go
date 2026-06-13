@@ -12,6 +12,7 @@ import (
 )
 
 func TestGetOllamaBinPath(t *testing.T) {
+	t.Setenv("PATH", "")
 	tempDir := t.TempDir()
 	t.Setenv("HOME", tempDir)
 	t.Setenv("USERPROFILE", tempDir)
@@ -31,6 +32,7 @@ func TestGetOllamaBinPath(t *testing.T) {
 }
 
 func TestIsOllamaInstalled(t *testing.T) {
+	t.Setenv("PATH", "")
 	tempDir := t.TempDir()
 	t.Setenv("HOME", tempDir)
 	t.Setenv("USERPROFILE", tempDir)
