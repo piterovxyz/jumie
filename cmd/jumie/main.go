@@ -2,12 +2,14 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"jumie/internal/ai"
 	"jumie/internal/daemon"
 	"jumie/internal/installer"
 	"jumie/internal/ipc"
 	"log"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -118,7 +120,7 @@ func checkDeps(c *ipc.Client) error {
 		return fmt.Errorf("installation aborted")
 	}
 
-	err = installer.InstallOllama(func(p string) {
+	err = installer.InstallOllama(context.Background(), http.DefaultClient, func(p string) {
 		fmt.Println(Cyan + p + Reset)
 	})
 	if err != nil {

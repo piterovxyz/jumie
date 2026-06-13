@@ -9,6 +9,7 @@ import (
 )
 
 func setupMockOllama(t *testing.T) {
+	t.Setenv("PATH", "")
 	tempDir := t.TempDir()
 	t.Setenv("HOME", tempDir)
 	t.Setenv("USERPROFILE", tempDir)
@@ -64,6 +65,7 @@ func TestStartAndStopOllama(t *testing.T) {
 }
 
 func TestStartOllamaNotInstalled(t *testing.T) {
+	t.Setenv("PATH", "")
 	tempDir := t.TempDir()
 	t.Setenv("HOME", tempDir)
 	t.Setenv("USERPROFILE", tempDir)
